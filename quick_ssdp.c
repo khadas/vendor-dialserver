@@ -53,7 +53,7 @@ static const char ddxml[] = ""
     " <device>"
     " <deviceType>urn:schemas-upnp-org:device:tvdevice:1</deviceType>"
     " <friendlyName>%s</friendlyName>"
-    " <manufacturer> </manufacturer>"
+    " <manufacturer>Amlogic</manufacturer>"
     " <modelName>%s</modelName>"
     " <UDN>uuid:%s</UDN>"
     " </device>"
@@ -87,6 +87,7 @@ static char model_name[256];
 static struct mg_context *ctx;
 
 bool wakeOnWifiLan=true;
+extern bool ipChangeFlag;
 
 static void *request_handler(enum mg_event event,
                              struct mg_connection *conn,
@@ -176,18 +177,19 @@ static char * get_local_address() {
     return hw_addr;
 }
 
+struct ip_mreq mreq = {0};
+int ssdp_socket_fd = -1;
+int ssdp_running = 1;
 static void handle_mcast(char *hw_addr) {
-    int s, one = 1, bytes;
+    int one = 1, bytes, s;
     socklen_t addrlen;
     struct sockaddr_in saddr = {0};
-    struct ip_mreq mreq = {0};
+    
     char wakeup_buf[sizeof(wakeup_header) + HW_ADDRSTRLEN + STR_TIMEOUTLEN] = {0, };
     char send_buf[sizeof(ssdp_reply) + INET_ADDRSTRLEN + 256 + 256 + sizeof(wakeup_buf)] = {0,};
-    int send_size;
     if (-1 < wakeup_timeout && wakeOnWifiLan) {
         snprintf(wakeup_buf, sizeof(wakeup_buf), wakeup_header, hw_addr, wakeup_timeout);
     }
-    send_size = snprintf(send_buf, sizeof(send_buf), ssdp_reply, ip_addr, my_port, uuid, wakeup_buf);
     if (-1 == (s = socket(AF_INET, SOCK_DGRAM, 0))) {
         perror("socket");
         exit(1);
@@ -211,8 +213,9 @@ static void handle_mcast(char *hw_addr) {
         perror("add_membership");
         exit(1);
     }
+    ssdp_socket_fd = s;
     //printf("Starting Multicast handling on 239.255.255.250\n");
-    while (1) {
+    while (ssdp_running) {
         addrlen = sizeof(saddr);
         if (-1 == (bytes = recvfrom(s, gBuf, sizeof(gBuf) - 1, 0,
                                     (struct sockaddr *)&saddr, &addrlen))) {
@@ -238,6 +241,7 @@ static void handle_mcast(char *hw_addr) {
         }
         printf("Sending SSDP reply to %s:%d\n",
                inet_ntoa(saddr.sin_addr), ntohs(saddr.sin_port));
+        int send_size = snprintf(send_buf, sizeof(send_buf), ssdp_reply, ip_addr, my_port, uuid, wakeup_buf);
         if (-1 == sendto(s, send_buf, send_size, 0, (struct sockaddr *)&saddr, addrlen)) {
             perror("sendto");
             continue;
@@ -284,4 +288,26 @@ void run_ssdp(int port, const char *pFriendlyName, const char * pModelName, cons
         handle_mcast(hw_addr);
     }
     free(hw_addr); hw_addr = NULL;
+}
+
+void addNewIpToMulticast()
+{
+    fprintf(stderr,"enter addNewIpToMulticast \n");
+    if (-1 == setsockopt(ssdp_socket_fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq, sizeof(mreq))) {
+        perror("drop_membership");
+        exit(1);
+    }
+    fprintf(stderr,"old ip leave\n");
+    char* hw_addr = get_local_address();
+    if (hw_addr == NULL) {
+        printf("Unable to retrieve hardware address.");
+        return;
+    }
+    fprintf(stderr,"new ip is:%s\n",ip_addr);
+    mreq.imr_multiaddr.s_addr = inet_addr("239.255.255.250");
+    mreq.imr_interface.s_addr = inet_addr(ip_addr);
+    if (-1 == setsockopt(ssdp_socket_fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq))) {
+        perror("add_membership");
+        exit(1);
+    }
 }

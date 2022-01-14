@@ -1,35 +1,26 @@
-CC=$(TARGET)gcc
-
 .PHONY: clean
 .DEFAULT_GOAL=all
 
-OBJS := main.o dial_server.o mongoose.o quick_ssdp.o url_lib.o dial_data.o system_callbacks.o
+OBJS := main.o dial_server.o mongoose.o quick_ssdp.o url_lib.o dial_data.o system_callbacks.o nf_callbacks.o
+OBJS_CXX := thunder_api.o
 HEADERS := $(wildcard *.h)
+
+LOCAL_INCLUDE := -I$(STAGING_DIR)/usr/include/WPEFramework/
+CFLAGS += $(LOCAL_INCLUDE)
+LDFLAGS += -lWPEFrameworkProtocols -lWPEFrameworkPlugins -lWPEFrameworkCore -lamldeviceproperty
 
 %.c: $(HEADERS)
 
-%.o: %.c $(HEADERS)
-#	$(CC) -Wall -Werror -g -std=gnu99 $(CFLAGS) -c $*.c -o $*.o
-	$(CC) -Wall -g -fPIC -std=gnu99 $(CFLAGS) -c $*.c -o $*.o
+$(OBJS) : %.o: %.c $(HEADERS)
+	$(CC) -Wall -g -fPIC -c $< -o $@
+
+$(OBJS_CXX) : %.o: %.cpp $(HEADERS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -Wall -g -fPIC -c $< -o $@
 
 all: dialserver
-debug: CFLAGS += -DDEBUG
-debug: dialserver test
 
-nf_callbacks_lib: nf_callbacks.o
-#	$(CC) -Wall -Werror -g nf_callbacks.o -o libnfCallbacks.so --shared
-	$(CC) -Wall -Werror -Wl,-undefined -Wl,dynamic_lookup -g nf_callbacks.o -o libnfCallbacks.so --shared
-
-dialserver: nf_callbacks_lib $(OBJS)
-	$(CC) -Wall -Werror -Wl,-rpath,. -g $(OBJS) -ldl -lpthread -lrt -L. -lnfCallbacks -o dialserver
-
-dialserver_with_ASAN: nf_callbacks_lib $(OBJS)
-	$(CC) -Wall -Werror  -fsanitize=address -Wl,-rpath,. -g $(OBJS) -ldl -lpthread -lrt -L. -lnfCallbacks -o dialserver_with_ASAN
-
-test:
-	make -C tests
-	./tests/run_tests
+dialserver: $(OBJS) $(OBJS_CXX)
+	$(CC) $(CFLAGS) -Wall -Werror -Wl,-rpath,. -g $(OBJS) $(OBJS_CXX) $(LDFLAGS) -ldl -lpthread -lrt -lstdc++ -o $@
 
 clean:
-	rm -f *.o dialserver dialserver_with_ASAN *.so
-	make -C tests clean
+	rm -f *.o dialserver

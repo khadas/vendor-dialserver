@@ -44,60 +44,42 @@
 #include "nf_callbacks.h"
 #include "system_callbacks.h"
 
+#include "thunder_api.h"
+#include <net/if.h>
+#include <sys/ioctl.h>
+
 #define BUFSIZE 256
 
-char *spAppNetflix = "netflix";      // name of the netflix executable
-static char *spDefaultNetflix = "../../../src/platform/qt/netflix";
-static char *spDefaultData="../../../src/platform/qt/data";
-static char *spNfDataDir = "NF_DATA_DIR=";
-static char *spDefaultFriendlyName = "DIAL server sample";
-static char *spDefaultModelName = "NOT A VALID MODEL NAME";
-static char *spDefaultUuid = "deadbeef-dead-beef-dead-beefdeadbeef";
-static char spDataDir[BUFSIZE];
-char spNetflix[BUFSIZE];
 static char spFriendlyName[BUFSIZE];
 static char spModelName[BUFSIZE];
-static char spUuid[BUFSIZE];
-extern bool wakeOnWifiLan;
+static char spUuid[BUFSIZE] = "deadbeef-wlfy-beef-dead-";
+extern bool wakeOnWifiLan;  //set the value to true to support WoL/WoWLAN in main(), false to nonosupport;default is true.
 static int gDialPort;
+static char *spDefaultUuid = "deadbeef-wlfy-beef-dead-beefdeadbeef";
+bool _appHidden = false;
 
-char spSleepPassword[BUFSIZE];
+//used to netflix start function.
+char *spAppNetflix = "netflix";      // name of the netflix executable
+static char *spDefaultNetflix = "../../../src/platform/qt/netflix";
+char spNetflix[BUFSIZE];
+//set the value of spDataDir,and putenv(spDataDir) in old runApplication() function.
+static char spDataDir[BUFSIZE];
+static char *spNfDataDir = "NF_DATA_DIR=";
+static char *spDefaultData="../../../src/platform/qt/data";
+//used to system callback function.
+char spSleepPassword[BUFSIZE]; 
 
-static char *spAppYouTube = "chrome";
-static char *spAppYouTubeMatch = "chrome.*google-chrome-dial";
-static char *spAppYouTubeExecutable = "/opt/google/chrome/google-chrome";
-static char *spYouTubePS3UserAgent = "--user-agent="
-    "Mozilla/5.0 (PS3; Leanback Shell) AppleWebKit/535.22 (KHTML, like Gecko) "
-    "Chrome/19.0.1048.0 LeanbackShell/01.00.01.73 QA Safari/535.22 Sony PS3/ "
-    "(PS3, , no, CH)";
-
-int doesMatch( char* pzExp, char* pzStr)
-{
-    regex_t exp;
-    int ret;
-    int match = 0;
-    if ((ret = regcomp( &exp, pzExp, REG_EXTENDED ))) {
-        char errbuf[1024] = {0,};
-        regerror(ret, &exp, errbuf, sizeof(errbuf));
-        fprintf( stderr, "regexp error: %s", errbuf );
-    } else {
-        regmatch_t matches[1];
-        if( regexec( &exp, pzStr, 1, matches, 0 ) == 0 ) {
-            match = 1;
-        }
-    }
-    regfree(&exp);
-    return match;
-}
-
+extern int ssdp_running;
 void signalHandler(int signal)
 {
+    fprintf(stderr, "signal %d\n", signal);
     switch(signal)
     {
         case SIGTERM:
             // just ignore this, we don't want to die
             break;
     }
+    ssdp_running = 0;
 }
 
 /*
@@ -106,82 +88,21 @@ void signalHandler(int signal)
  * name) and command line (if needed).
  * Implementors can override this function with an equivalent.
  */
-int isAppRunning( char *pzName, char *pzCommandPattern ) {
-  DIR* proc_fd = opendir("/proc");
-  if( proc_fd != NULL ) {
-    struct dirent* procEntry;
-    while((procEntry=readdir(proc_fd)) != NULL) {
-      if( doesMatch( "^[0-9][0-9]*$", procEntry->d_name ) ) {
-        char exePath[384] = {0,};
-        char link[256] = {0,};
-        char cmdlinePath[384] = {0,};
-        char buffer[1024] = {0,};
-        int len;
-        snprintf( exePath, sizeof(exePath), "/proc/%s/exe", procEntry->d_name);
-        snprintf( cmdlinePath, sizeof(cmdlinePath), "/proc/%s/cmdline", procEntry->d_name);
-
-        if( (len = readlink( exePath, link, sizeof(link)-1)) != -1 ) {
-          char executable[256] = {0,};
-          strncpy( executable, pzName, sizeof(executable) - 2 );
-          strcat( executable, "$" );
-          // TODO: Make this search for EOL to prevent false positives
-          if( !doesMatch( executable, link ) ) {
-            continue;
-          }
-          // else //fall through, we found it
-        }
-        else continue;
-
-        if (pzCommandPattern != NULL) {
-          FILE *cmdline = fopen(cmdlinePath, "r");
-          if (!cmdline) {
-            continue;
-          }
-          if (fgets(buffer, 1024, cmdline) == NULL) {
-            fclose(cmdline);
-            continue;
-          }
-          fclose(cmdline);
-
-          if (!doesMatch( pzCommandPattern, buffer )) {
-            continue;
-          }
-        }
-        int d_name = atoi(procEntry->d_name);
-        closedir(proc_fd);
-        return d_name;
-      }
+DIALStatus appStatus(const char *callsign) {
+    if(strcmp(getAppStatus(callsign),"resumed")  == 0) {
+        printf("amldial-appStatus %s\n",getAppStatus(callsign));
+        return kDIALStatusRunning;
     }
-
-    closedir(proc_fd);
-  } else {
-    printf("/proc failed to open\n");
-  }
-  return 0;
-}
-
-pid_t runApplication( const char * const args[], DIAL_run_t *run_id ) {
-  pid_t pid = fork();
-  if (pid != -1) {
-    if (!pid) { // child
-      putenv(spDataDir);
-      printf("Execute:\n");
-      for(int i = 0; args[i]; ++i) {
-        printf(" %d) %s\n", i, args[i]);
-      }
-      if( execv(*args, (char * const *) args) == -1) {
-		printf("%s failed to launch\n", *args);
-		perror("Failed to Launch \n");
-      }
-    } else {
-      *run_id = (void *)(long)pid; // parent PID
+    else if(strcmp(getAppStatus(callsign),"suspended")  == 0) {
+        printf("amldial-appStatus %s\n",getAppStatus(callsign));
+        return kDIALStatusHide;
     }
-    return kDIALStatusRunning;
-  } else {
-    return kDIALStatusStopped;
-  }
+    else if(strcmp(getAppStatus(callsign),"deactivated")  == 0) {
+        printf("amldial-appStatus %s\n",getAppStatus(callsign));
+        return kDIALStatusStopped;
+    }
+    else return kDIALStatusError;
 }
-
 
 /* Compare the applications last launch parameters with the new parameters.
  * If they match, return false
@@ -201,76 +122,44 @@ static DIALStatus youtube_start(DIALServer *ds, const char *appname,
                                 DIAL_run_t *run_id, void *callback_data) {
     printf("\n\n ** LAUNCH YouTube ** with payload %s\n\n", payload);
 
-    char url[512] = {0,}, data[512] = {0,};
+    char url[512] = {0,};
     if (strlen(payload) && strlen(additionalDataUrl)) {
-        snprintf( url, sizeof(url), "https://www.youtube.com/tv?%s&%s", payload, additionalDataUrl);
+        snprintf( url, sizeof(url), "https://www.youtube.com/tv?%s&%s&inApp=true", payload, additionalDataUrl);
     } else if (strlen(payload)) {
-        snprintf( url, sizeof(url), "https://www.youtube.com/tv?%s", payload);
+        snprintf( url, sizeof(url), "https://www.youtube.com/tv?%s&inApp=true", payload);
     } else {
-      snprintf( url, sizeof(url), "https://www.youtube.com/tv");
+      snprintf( url, sizeof(url), "https://www.youtube.com/tv&inApp=true");
     }
-    snprintf( data, sizeof(data), "--user-data-dir=%s/.config/google-chrome-dial", getenv("HOME") );
 
-    const char * const youtube_args[] = { spAppYouTubeExecutable,
-      spYouTubePS3UserAgent,
-      data, "--app", url, NULL
-    };
-    runApplication( youtube_args, run_id );
-
-    return kDIALStatusRunning;
+    if(activateApp("youtube",url) == 0)
+        return kDIALStatusRunning;
+    return kDIALStatusStopped;;
 }
 
 static DIALStatus youtube_hide(DIALServer *ds, const char *app_name,
-                                        DIAL_run_t *run_id, void *callback_data)
-{
-    return (isAppRunning( spAppYouTube, spAppYouTubeMatch )) ? kDIALStatusRunning : kDIALStatusStopped;
+                                        DIAL_run_t *run_id, void *callback_data) {
+    return hideApp("Cobalt") ? kDIALStatusHide : kDIALStatusError;
+    // return isAppRunning("Cobalt") ? kDIALStatusRunning : kDIALStatusStopped;
 }
         
 static DIALStatus youtube_status(DIALServer *ds, const char *appname,
                                  DIAL_run_t run_id, int *pCanStop, void *callback_data) {
     // YouTube can stop
-    *pCanStop = 1;
-    return isAppRunning( spAppYouTube, spAppYouTubeMatch ) ? kDIALStatusRunning : kDIALStatusStopped;
+    // *pCanStop = 1;
+    // if(_appHidden)
+    //     return kDIALStatusHide;
+    // return isAppRunning("Cobalt") ? kDIALStatusRunning : kDIALStatusStopped;
+    appStatus("Cobalt");
 }
 
 static void youtube_stop(DIALServer *ds, const char *appname, DIAL_run_t run_id,
                          void *callback_data) {
     printf("\n\n ** KILL YouTube **\n\n");
-    pid_t pid;
-    if ((pid = isAppRunning( spAppYouTube, spAppYouTubeMatch ))) {
-        kill(pid, SIGTERM);
-    }
+    // if (isAppRunning("Cobalt"))
+    deActivateApp("youtube");
 }
 
 void run_ssdp(int port, const char *pFriendlyName, const char * pModelName, const char *pUuid);
-
-static void printUsage()
-{
-    int i, numberOfOptions = sizeof(gDialOptions) / sizeof(dial_options_t);
-    printf("usage: dialserver <options>\n");
-    printf("options:\n");
-    for( i = 0; i < numberOfOptions; i++ )
-    {
-        printf("        %s|%s [value]: %s\n",
-            gDialOptions[i].pOption,
-            gDialOptions[i].pLongOption,
-            gDialOptions[i].pOptionDescription );
-    }
-}
-
-static void setValue( char * pSource, char dest[] )
-{
-    // Destination is always one of our static buffers with size BUFSIZE
-    memset( dest, 0, BUFSIZE );
-    int length = (strlen(pSource) < BUFSIZE - 1) ? strlen(pSource) : (BUFSIZE - 1);
-    memcpy( dest, pSource, length );
-}
-
-static void setDataDir(char *pData)
-{
-    setValue( spNfDataDir, spDataDir );
-    strncat(spDataDir, pData, sizeof(spDataDir) - 1);
-}
 
 void runDial(void)
 {
@@ -311,45 +200,50 @@ void runDial(void)
     free(ds);
 }
 
-static void processOption( int index, char * pOption )
+static void setValue( char * pSource, char dest[] )
 {
-    switch(index)
+    // Destination is always one of our static buffers with size BUFSIZE
+    memset( dest, 0, BUFSIZE );
+    int length = (strlen(pSource) < BUFSIZE - 1) ? strlen(pSource) : (BUFSIZE - 1);
+    memcpy( dest, pSource, length );
+}
+
+bool get_mac(char* mac, const char *if_typ)
+{
+    struct ifreq tmp;
+    int sock_mac;
+    char mac_addr[18];
+    sock_mac = socket(AF_INET, SOCK_STREAM, 0);
+    if( sock_mac == -1)
     {
-    case 0: // Data path
-        memset( spDataDir, 0, sizeof(spDataDir) );
-        setDataDir( pOption );
-        break;
-    case 1: // Netflix path
-        setValue( pOption, spNetflix );
-        break;
-    case 2: // Friendly name
-        setValue( pOption, spFriendlyName );
-        break;
-    case 3: // Model Name
-        setValue( pOption, spModelName );
-        break;
-    case 4: // UUID
-        setValue( pOption, spUuid );
-        break;
-    case 5:
-        if (strcmp(pOption, "on")==0) {
-            wakeOnWifiLan=true;
-        } else if (strcmp(pOption, "off") == 0) {
-            wakeOnWifiLan=false;
-        } else {
-            fprintf(stderr, "Option %s is not valid for %s",
-                    pOption, WAKE_OPTION_LONG);
-            exit(1);
-        }
-        break;
-    case 6:
-        setValue( pOption, spSleepPassword );
-        break;
-    default:
-        // Should not get here
-        fprintf( stderr, "Option %d not valid\n", index);
-        exit(1);
+        return false;
     }
+    memset(&tmp,0,sizeof(tmp));
+    strncpy(tmp.ifr_name, if_typ,sizeof(tmp.ifr_name)-1 );
+    if( (ioctl( sock_mac, SIOCGIFHWADDR, &tmp)) < 0 )
+    {
+        close(sock_mac);
+        return false;
+    }
+    sprintf(mac_addr, "%02x%02x%02x%02x%02x%02x",
+            (unsigned char)tmp.ifr_hwaddr.sa_data[0],
+            (unsigned char)tmp.ifr_hwaddr.sa_data[1],
+            (unsigned char)tmp.ifr_hwaddr.sa_data[2],
+            (unsigned char)tmp.ifr_hwaddr.sa_data[3],
+            (unsigned char)tmp.ifr_hwaddr.sa_data[4],
+            (unsigned char)tmp.ifr_hwaddr.sa_data[5]
+            );
+    close(sock_mac);
+    memcpy(mac,mac_addr,strlen(mac_addr));
+    return true;
+}
+
+void setDialProperty() {
+    char ret[128] = {0};
+    char mac_addr[18] = {0};
+    setValue(getDialName("DIALSERVER_NAME",ret) ? ret : "Platform-Amlogic-Defult",spFriendlyName);
+    setValue(getDialName("MODEL_NAME",ret) ? ret : "OTT-Defult",spModelName);
+    get_mac(mac_addr, "eth0") ? strcat(spUuid, mac_addr) : setValue( spDefaultUuid, spUuid );
 }
 
 int main(int argc, char* argv[])
@@ -359,46 +253,12 @@ int main(int argc, char* argv[])
     sigemptyset(&action.sa_mask);
     action.sa_flags = 0;
     sigaction(SIGTERM, &action, NULL);
+    sigaction(SIGINT, &action, NULL);
 
     srand(time(NULL));
-    int i;
-    i = isAppRunning(spAppNetflix, NULL );
-    printf("Netflix is %s\n", i ? "Running":"Not Running");
-    i = isAppRunning( spAppYouTube, spAppYouTubeMatch );
-    printf("YouTube is %s\n", i ? "Running":"Not Running");
+    setDialProperty();
 
-    // set all defaults
-    setValue(spDefaultFriendlyName, spFriendlyName );
-    setValue(spDefaultModelName, spModelName );
-    setValue(spDefaultUuid, spUuid );
-    setValue(spDefaultNetflix, spNetflix );
-    setDataDir(spDefaultData);
-
-    // Process command line options
-    // Loop through pairs of command line options.
-    for( i = 1; i < argc; i+=2 )
-    {
-        int numberOfOptions = sizeof(gDialOptions) / sizeof(dial_options_t);
-        while( --numberOfOptions >= 0 )
-        {
-            int shortLen, longLen;
-            shortLen = strlen(gDialOptions[numberOfOptions].pOption);
-            longLen = strlen(gDialOptions[numberOfOptions].pLongOption);
-            if( ( ( strncmp( argv[i], gDialOptions[numberOfOptions].pOption, shortLen ) == 0 ) ||
-                ( strncmp( argv[i], gDialOptions[numberOfOptions].pLongOption, longLen ) == 0 ) ) &&
-                ( (i+1) < argc ) )
-            {
-                processOption( numberOfOptions, argv[i+1] );
-                break;
-            }
-        }
-        // if we don't find an option in our list, bail out.
-        if( numberOfOptions < 0 )
-        {
-            printUsage();
-            exit(1);
-        }
-    }
+    listenIpChange();
     runDial();
 
     return 0;

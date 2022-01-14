@@ -39,7 +39,7 @@
 #include "url_lib.h"
 
 // TODO: Partners should define this port
-#define DIAL_PORT (56789)
+#define DIAL_PORT (80)
 #define DIAL_DATA_SIZE (8*1024)
 
 static const char * const gLocalhost = "127.0.0.1";
@@ -162,6 +162,7 @@ static void handle_app_start(struct mg_connection *conn,
                              const struct mg_request_info *request_info,
                              const char *app_name,
                              const char *origin_header) {
+    fprintf(stderr,"in start(),origin_header is : %s",origin_header);
     char additional_data_param[DIAL_MAX_ADDITIONALURL] = {0, };
     char body[DIAL_MAX_PAYLOAD + sizeof(additional_data_param) + 2] = {0, };
     DIALApp *app;
@@ -196,15 +197,35 @@ static void handle_app_start(struct mg_connection *conn,
                         dial_port, app_name);
             }
             fprintf(stderr, "Starting the app with params %s\n", body);
+            if (origin_header == NULL) {
+                mg_send_http_error(conn, 403, "Forbidden", "Forbidden");
+                ds_unlock(ds);
+                return;
+            }
+            int response200Flag = 0;
+            if ((app->state = app->callbacks.status_cb(ds, app_name, app->run_id, NULL, app->callback_data)) == kDIALStatusRunning)
+                response200Flag = 1;
             app->state = app->callbacks.start_cb(ds, app_name, body,
                                                  request_info->query_string,
                                                  additional_data_param, 
                                                  &app->run_id,
                                                  app->callback_data);
-            if (app->state == kDIALStatusRunning) {
+            if ((app->state == kDIALStatusRunning)&&(response200Flag == 0)) {
                 mg_printf(
                         conn,
                         "HTTP/1.1 201 Created\r\n"
+                        "Content-Type: text/plain\r\n"
+                        "Location: http://%s:%d/apps/%s/run\r\n"
+                        "Access-Control-Allow-Origin: %s\r\n"
+                        "\r\n",
+                        laddr, dial_port, app_name, origin_header);
+                // copy the payload into the application struct
+                memset(app->payload, 0, DIAL_MAX_PAYLOAD);
+                memcpy(app->payload, body, body_size);
+            } else if ((app->state == kDIALStatusRunning)&&(response200Flag == 1)) {
+                mg_printf(
+                        conn,
+                        "HTTP/1.1 200 Created\r\n"
                         "Content-Type: text/plain\r\n"
                         "Location: http://%s:%d/apps/%s/run\r\n"
                         "Access-Control-Allow-Origin: %s\r\n"
@@ -738,12 +759,21 @@ static void *request_handler(enum mg_event event, struct mg_connection *conn,
             !strcmp(request_info->http_headers[i].name, "host")) {
             host_header = request_info->http_headers[i].value;
         } else if (!strcmp(request_info->http_headers[i].name, "Origin") ||
-                   !strcmp(request_info->http_headers[i].name, "origin")) {
+                   !strcmp(request_info->http_headers[i].name, "origin") ||
+                   !strcmp(request_info->http_headers[i].name, "ORIGIN")) {
             origin_header = request_info->http_headers[i].value;
         }
+        fprintf(stderr, "%d: %s=%s\n", i, request_info->http_headers[i].name, request_info->http_headers[i].value);
+        fprintf(stderr, "%d:Origin %s, Host: %s\n", i, origin_header, host_header);
     }
     fprintf(stderr, "Origin %s, Host: %s\n", origin_header, host_header);
     if (event == MG_NEW_REQUEST) {
+        // if (origin_header == NULL) {
+        // fprintf(stderr,"lalala: null1\n");
+        // mg_send_http_error(conn, 403, "Forbidden", "Forbidden");
+        // return "done";
+        // fprintf(stderr,"lalala: null2\n");
+        // }
         // URL ends with run
         if (strlen(request_info->uri) > strlen(RUN_URI) + strlen(APPS_URI)
             && !strncmp(request_info->uri + strlen(request_info->uri) - strlen(RUN_URI), RUN_URI, strlen(RUN_URI)))
@@ -757,6 +787,7 @@ static void *request_handler(enum mg_event event, struct mg_connection *conn,
             strncpy(app_name, request_info->uri + strlen(APPS_URI), appname_len);
 
             // Check authorized origins.
+            // if ((origin_header && !is_allowed_origin(ds, origin_header, app_name))||(origin_header == NULL)) {
             if (origin_header && !is_allowed_origin(ds, origin_header, app_name)) {
                 mg_send_http_error(conn, 403, "Forbidden", "Forbidden");
                 return "done";
@@ -786,18 +817,30 @@ static void *request_handler(enum mg_event event, struct mg_connection *conn,
             app_name = request_info->uri + strlen(APPS_URI);
 
             // Check authorized origins.
+            // if ((origin_header && !is_allowed_origin(ds, origin_header, app_name))||(origin_header == NULL)) {
             if (origin_header && !is_allowed_origin(ds, origin_header, app_name)) {
-                mg_send_http_error(conn, 403, "Forbidden", "Forbidden");
-                return "done";
+                if(!strcmp(app_name,"YouTube") || !strcmp(app_name,"Netflix") || !strcmp(app_name,"system")) {
+                    mg_send_http_error(conn, 403, "Forbidden", "Forbidden");
+                    fprintf(stderr,"lalala: here1\n");
+                    return "done";
+                    fprintf(stderr,"lalala: here2\n");
+                }
+                else {
+                    mg_send_http_error(conn, 404, "Not Found", "Not Found");
+                    fprintf(stderr,"lalala: here3\n");
+                    return "done";
+                    fprintf(stderr,"lalala: here4\n");
+                }
             }
 
             // Return OPTIONS.
             if (!strcmp(request_info->request_method, "OPTIONS")) {
                 return options_response(ds, conn, origin_header, app_name, "GET, POST, OPTIONS");
             }
-
+            fprintf(stderr,"lalala: here\n");
             // start app
             if (!strcmp(request_info->request_method, "POST")) {
+                fprintf(stderr,"lalala: the request origin head is %s\n",origin_header);
                 handle_app_start(conn, request_info, app_name, origin_header);
             // get app status
             } else if (!strcmp(request_info->request_method, "GET")) {
@@ -819,6 +862,7 @@ static void *request_handler(enum mg_event event, struct mg_connection *conn,
             strncpy(app_name, request_info->uri + strlen(APPS_URI), appname_len);
 
             // Check authorized origins.
+            // if ((origin_header && !is_allowed_origin(ds, origin_header, app_name))||(origin_header == NULL)) {
             if (origin_header && !is_allowed_origin(ds, origin_header, app_name)) {
                 mg_send_http_error(conn, 403, "Forbidden", "Forbidden");
                 return "done";
@@ -848,6 +892,7 @@ static void *request_handler(enum mg_event event, struct mg_connection *conn,
                     mg_send_http_error(conn, 500, "Internal Error", "Internal Error");
                 } else {
                     // Check authorized origins (still applicable via loopback).
+                    // if ((origin_header && !is_allowed_origin(ds, origin_header, app_name))||(origin_header == NULL)) {
                     if (origin_header && !is_allowed_origin(ds, origin_header, app_name)) {
                         mg_send_http_error(conn, 403, "Forbidden", "Forbidden");
                         return "done";
