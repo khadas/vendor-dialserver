@@ -62,7 +62,7 @@ int deActivateApp(const char *appName) {
   if (strcmp(appName, "youtube") == 0) {
     JsonObject callsignObj = JsonObject("{\"callsign\": \"Cobalt\"}");
     uint32_t result =
-        g_wpe_contoller->Set<JsonObject>(1000, "deactivate", callsignObj);
+        g_wpe_contoller->Set<JsonObject>(2000, "deactivate", callsignObj);
     std::cout << "amldial-controller deactivate() return value:" << result << std::endl;
     _appHidden = false;
     return 0;
@@ -122,14 +122,17 @@ bool getDialName(char *name, char *ret) {
     if (getStatusResult.Elements().Count() == 1) {
       JsonObject obj = getStatusResult[0].Object();
       if (obj.HasLabel("state")) {
-        const std::string state = obj["state"].String();
+        const char *status_str[] = {"resumed", "suspended", "deactivated"};
+        const std::string &state = obj["state"].String();
         std::cout << "amldial-" << callsign << " state is:" << state << std::endl;
-        return state.c_str();
+        for (int i=0; i<sizeof(status_str)/sizeof(status_str[0]); i++)
+          if (state == status_str[i])
+            return status_str[i];
       }
-    }
+    } 
   }
   std::cout << "amldial-getAppStatus() failed" << std::endl;
-  return NULL;
+  return "deactivated";
 }
 
 bool hideApp(const char* callsign) {

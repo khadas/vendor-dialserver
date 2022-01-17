@@ -143,6 +143,7 @@ static DIALStatus youtube_hide(DIALServer *ds, const char *app_name,
         
 static DIALStatus youtube_status(DIALServer *ds, const char *appname,
                                  DIAL_run_t run_id, int *pCanStop, void *callback_data) {
+    if (pCanStop) *pCanStop = 1;
     appStatus("Cobalt");
 }
 
