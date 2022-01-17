@@ -139,23 +139,16 @@ static DIALStatus youtube_start(DIALServer *ds, const char *appname,
 static DIALStatus youtube_hide(DIALServer *ds, const char *app_name,
                                         DIAL_run_t *run_id, void *callback_data) {
     return hideApp("Cobalt") ? kDIALStatusHide : kDIALStatusError;
-    // return isAppRunning("Cobalt") ? kDIALStatusRunning : kDIALStatusStopped;
 }
         
 static DIALStatus youtube_status(DIALServer *ds, const char *appname,
                                  DIAL_run_t run_id, int *pCanStop, void *callback_data) {
-    // YouTube can stop
-    // *pCanStop = 1;
-    // if(_appHidden)
-    //     return kDIALStatusHide;
-    // return isAppRunning("Cobalt") ? kDIALStatusRunning : kDIALStatusStopped;
     appStatus("Cobalt");
 }
 
 static void youtube_stop(DIALServer *ds, const char *appname, DIAL_run_t run_id,
                          void *callback_data) {
     printf("\n\n ** KILL YouTube **\n\n");
-    // if (isAppRunning("Cobalt"))
     deActivateApp("youtube");
 }
 

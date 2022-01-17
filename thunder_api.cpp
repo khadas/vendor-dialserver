@@ -9,12 +9,29 @@ static WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>
     *g_wpe_network = nullptr;
 static WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>
     *g_wpe_rdkshell = nullptr;
+static WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>
+    *g_wpe_system = nullptr;
 
 extern "C" {
 int activateApp(const char *appName, const char *url) {
 
+  uint32_t ret;
+  JsonObject powerParams;
+  JsonObject powerResult;
+  ret = g_wpe_system->Invoke(2000, "getPowerState", powerParams, powerResult);
+  std::cout << "amldial-system getPowerState() return value:" << ret << std::endl;
+  if (WPEFramework::Core::ERROR_NONE == ret && !powerResult.Get("powerState").Value().compare("ON")) {
+      // Do nothing
+  } else {
+      // Ask power management to power on
+      powerParams.Set("powerState", "ON");
+      powerParams.Set("standbyReason", "DIAL StartApplication");
+      ret = g_wpe_system->Invoke(2000, "setPowerState", powerParams, powerResult);
+      std::cout << "amldial-system setPowerState() return value:" << ret << std::endl;
+  }
+
   JsonObject launchtype = JsonObject("{\"launchtype\": \"launch=dial\"}");
-  uint32_t ret = g_wpe_contoller->Set<JsonObject>(1000, "configitem@Cobalt", launchtype);
+  ret = g_wpe_contoller->Set<JsonObject>(1000, "configitem@Cobalt", launchtype);
   std::cout << "amldial-controller configitem@Cobalt() return value:" << ret << std::endl;
 
   if (strcmp(appName, "youtube") == 0) {
@@ -82,6 +99,9 @@ int listenIpChange() {
   g_wpe_rdkshell =
       new WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>(
           "org.rdk.RDKShell.1");
+  g_wpe_system =
+      new WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>(
+          "org.rdk.System.1");
   return 0;
 }
 
@@ -111,26 +131,6 @@ bool getDialName(char *name, char *ret) {
   std::cout << "amldial-getAppStatus() failed" << std::endl;
   return NULL;
 }
-
-// bool getAppStatus(const char *callsign) {
-//   ASSERT(g_wpe_contoller != nullptr);
-//   JsonArray getStatusResult;
-//   int result = g_wpe_contoller->Get<JsonArray>(
-//       2000, std::string("status@") + callsign, getStatusResult);
-//   if (result == WPEFramework::Core::ERROR_NONE) {
-//     if (getStatusResult.Elements().Count() == 1) {
-//       JsonObject obj = getStatusResult[0].Object();
-//       if (obj.HasLabel("state")) {
-//         const std::string &state = obj["state"].String();
-//         std::cout << "amldial-" << callsign << " state is:" << state << std::endl;
-//         if (state == "resumed")
-//           return true;
-//       }
-//     }
-//   }
-//   std::cout << "amldial-getAppStatus() result isnot resumed" << std::endl;
-//   return false;
-// }
 
 bool hideApp(const char* callsign) {
   JsonObject invokeParams;
