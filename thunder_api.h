@@ -5,15 +5,26 @@ extern "C" {
 #endif
 
 extern void addNewIpToMulticast();
-// extern bool isAppRunning(const char *callsign);
-int activateApp(const char* appName, const char* url);
-int deActivateApp(const char* appName);
+int activateApp(const char* callsign, const char* url);
+int deActivateApp(const char* callsign);
 int listenIpChange();
-bool getDialName(char* name, char* ret);
+bool getDialName(const char* name, char* ret);
 const char* getAppStatus(const char* callsign);
 extern bool _appHidden;
 bool hideApp(const char* callsign);
 bool resumeApp(const char* callsign);
+int loadJson(const char* jsonFile);
+
+struct appInfo {
+    char* name;
+    char* handler;
+    char* callsign;
+    char* hide;
+    char* url;
+    struct appInfo *next;
+};
+extern struct appInfo* appInfoList;
+extern struct appInfo* curAppForDial;
 
 #ifdef __cplusplus
 }

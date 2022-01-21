@@ -13,9 +13,9 @@ static WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>
     *g_wpe_system = nullptr;
 
 extern "C" {
-int activateApp(const char *appName, const char *url) {
-
+int activateApp(const char *callsign, const char *url) {
   uint32_t ret;
+  // Wake On Lan
   JsonObject powerParams;
   JsonObject powerResult;
   ret = g_wpe_system->Invoke(2000, "getPowerState", powerParams, powerResult);
@@ -29,45 +29,50 @@ int activateApp(const char *appName, const char *url) {
       ret = g_wpe_system->Invoke(2000, "setPowerState", powerParams, powerResult);
       std::cout << "amldial-system setPowerState() return value:" << ret << std::endl;
   }
-
-  JsonObject launchtype = JsonObject("{\"launchtype\": \"launch=dial\"}");
-  ret = g_wpe_contoller->Set<JsonObject>(1000, "configitem@Cobalt", launchtype);
-  std::cout << "amldial-controller configitem@Cobalt() return value:" << ret << std::endl;
-
-  if (strcmp(appName, "youtube") == 0) {
-    if (strcmp(getAppStatus("Cobalt"),"suspended") == 0) {
-      resumeApp("Cobalt");
-    }
-    if (strcmp(getAppStatus("Cobalt"),"deactivated") == 0) {
-      JsonObject callsignObj = JsonObject("{\"callsign\": \"Cobalt\"}");
-      uint32_t result =
-          g_wpe_contoller->Set<JsonObject>(1000, "activate", callsignObj);
-      std::cout << "amldial-controller activate() return value:" << result << std::endl;
-    }
+  // Config the app to be activated
+  if (!strcmp(curAppForDial->handler, "YouTube")) {
+    JsonObject launchtype = JsonObject("{\"launchtype\": \"launch=dial\"}");
+    launchtype.Set("url", url);
+    ret = g_wpe_contoller->Set<JsonObject>(1000, std::string("configitem@") + callsign, launchtype);
+    std::cout << "amldial-controller configItem@" <<  std::string(callsign) << "return value:" << ret << std::endl;
+  }
+  else
+    return 1;
+  // Activate the app
+  if (strcmp(getAppStatus(callsign),"suspended") == 0) {
+    resumeApp(callsign);
+  }
+  if (strcmp(getAppStatus(callsign),"deactivated") == 0) {
+    JsonObject callsignObj = JsonObject(std::string("{\"callsign\": \"") + callsign + "\"}");
+    ret =
+        g_wpe_contoller->Set<JsonObject>(1000, "activate", callsignObj);
+    std::cout << "amldial-controller activate() return value:" << ret << std::endl;
+  }
+  if (!strcmp(curAppForDial->handler, "YouTube")) {
     std::string launchURL;
     launchURL = launchURL + "\"" + url + "\"";
     std::cout << "amldial-launchURL value:" << launchURL << std::endl;
     JsonObject setUrlResult;
-    uint32_t result =
+    std::string linkAppCallsign = callsign;
+    linkAppCallsign.append(".1");
+    ret =
         WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>(
-            "Cobalt.1")
+            linkAppCallsign.c_str())
             .Invoke(2000, "deeplink", launchURL, setUrlResult);
-    std::cout << "amldial-cobalt deeplink() return value:" << result << std::endl;
-    return 0;
-  } else
-    return -1;
+    std::cout << "amldial-cobalt.. deeplink() return value:" << ret << std::endl;
+  }
+  else
+    return 1;
+  return 0;
 }
 
-int deActivateApp(const char *appName) {
-  if (strcmp(appName, "youtube") == 0) {
-    JsonObject callsignObj = JsonObject("{\"callsign\": \"Cobalt\"}");
-    uint32_t result =
-        g_wpe_contoller->Set<JsonObject>(2000, "deactivate", callsignObj);
-    std::cout << "amldial-controller deactivate() return value:" << result << std::endl;
-    _appHidden = false;
-    return 0;
-  } else
-    return -1;
+int deActivateApp(const char *callsign) {
+  JsonObject callsignObj = JsonObject(std::string("{\"callsign\": \"") + callsign + "\"}");
+  uint32_t result =
+      g_wpe_contoller->Set<JsonObject>(2000, "deactivate", callsignObj);
+  std::cout << "amldial-controller deactivate() return value:" << result << std::endl;
+  _appHidden = false;
+  return 0;
 }
 
 void changeMulticast(const JsonObject &s) {
@@ -93,6 +98,7 @@ int listenIpChange() {
       delete g_wpe_network;
     }
   }
+  // Link to required pullgins
   g_wpe_contoller =
       new WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>(
           "Controller.1");
@@ -105,7 +111,7 @@ int listenIpChange() {
   return 0;
 }
 
-bool getDialName(char *name, char *ret) {
+bool getDialName(const char *name, char *ret) {
   // Get DIAL Server name , manufacturer name and model name
   if (!AmlDeviceGetProperty(name, ret, 128)) {
     return true;
@@ -170,6 +176,34 @@ bool resumeApp(const char* callsign) {
     std::cout << "amldial-rdkshell launch() return value:" << setStatus << std::endl;
     return false;
   }
+}
+
+int loadJson(const char* jsonFile) {
+  uint32_t ret = 0;
+  const std::string &path = jsonFile;
+  WPEFramework::Core::File file(path);
+  JsonObject jsonResult;
+  if (!file.Open() || !jsonResult.IElement::FromFile(file)) {
+    std::cout << "amldial-loadJson() fail to read jsonfile" << std::endl;
+    ret = 1;
+  }
+  
+  appInfoList = (struct appInfo*)malloc(sizeof(struct appInfo));
+  struct appInfo* temp =  appInfoList;
+  JsonArray apps = (jsonResult["configuration"].Object())["apps"].Array();
+  for (int i = 0; i < apps.Elements().Count(); i++) {
+    JsonObject obj = apps[i].Object();
+    struct appInfo* p = (struct appInfo*)malloc(sizeof(struct appInfo));
+    p->name = strdup(obj["name"].String().c_str());
+    p->handler = strdup(obj["handler"].String().c_str());
+    p->callsign = strdup(obj["callsign"].String().c_str());
+    p->hide = strdup(obj["hide"].String().c_str());
+    p->url = strdup(obj["url"].String().c_str());
+    p->next = nullptr;
+    temp->next = p;
+    temp = p;
+  }
+  return ret;
 }
 
 }

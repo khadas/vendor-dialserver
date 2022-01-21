@@ -1,0 +1,27 @@
+{
+ "configuration":{
+  "apps":[
+   {
+    "name":"YouTube",
+    "handler":"YouTube",
+    "callsign":"Cobalt",
+    "hide":true,
+    "url":"https://www.youtube.com/tv"
+   },
+   {
+    "name":"YouTubeTV",
+    "handler":"YouTube",
+    "callsign":"CobaltTV",
+    "hide":true,
+    "url":"https://www.youtube.com/tv/upg"
+   },
+   {
+    "name":"YouTubeKids",
+    "handler":"YouTube",
+    "callsign":"CobaltKids",
+    "hide":true,
+    "url":"https://www.youtube.com/tv_kids"
+   }
+  ]
+ }
+}

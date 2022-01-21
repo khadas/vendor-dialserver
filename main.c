@@ -49,6 +49,7 @@
 #include <sys/ioctl.h>
 
 #define BUFSIZE 256
+#define JSONFILEPATH "/etc/amldial/AMLDIAL.json"
 
 static char spFriendlyName[BUFSIZE];
 static char spModelName[BUFSIZE];
@@ -57,16 +58,18 @@ extern bool wakeOnWifiLan;  //set the value to true to support WoL/WoWLAN in mai
 static int gDialPort;
 static char *spDefaultUuid = "deadbeef-wlfy-beef-dead-beefdeadbeef";
 bool _appHidden = false;
+struct appInfo* appInfoList = NULL;
+struct appInfo* curAppForDial = NULL;
 
-//used to netflix start function.
+//used to netflix start function.(it is useless now)
 char *spAppNetflix = "netflix";      // name of the netflix executable
 static char *spDefaultNetflix = "../../../src/platform/qt/netflix";
 char spNetflix[BUFSIZE];
-//set the value of spDataDir,and putenv(spDataDir) in old runApplication() function.
+//set the value of spDataDir,and putenv(spDataDir) in old runApplication() function.(it is useless now)
 static char spDataDir[BUFSIZE];
 static char *spNfDataDir = "NF_DATA_DIR=";
 static char *spDefaultData="../../../src/platform/qt/data";
-//used to system callback function.
+//used to system(app) callback function.(it is useless now)
 char spSleepPassword[BUFSIZE]; 
 
 extern int ssdp_running;
@@ -116,41 +119,62 @@ int shouldRelaunch(
     return ( strncmp( DIAL_get_payload(pServer, pAppName), args, DIAL_MAX_PAYLOAD ) != 0 );
 }
 
+void matchAppInfo(const char *appname) {
+    if (curAppForDial && !strcmp(curAppForDial->name,appname)) {
+        //do nothing
+    }
+    else {
+        //find the match appInfo
+        struct appInfo* temp = appInfoList;
+        while (temp->next) {
+            temp = temp->next;
+            if (!strcmp(temp->name,appname)) {
+                curAppForDial = temp;
+                break;
+            }
+        }
+    }
+}
+
 static DIALStatus youtube_start(DIALServer *ds, const char *appname,
                                 const char *payload, const char* query_string,
                                 const char *additionalDataUrl,
                                 DIAL_run_t *run_id, void *callback_data) {
-    printf("\n\n ** LAUNCH YouTube ** with payload %s\n\n", payload);
+    printf("\n\n ** LAUNCH YouTube: %s ** with payload %s\n\n", appname, payload);
 
+    matchAppInfo(appname);
     char url[512] = {0,};
     if (strlen(payload) && strlen(additionalDataUrl)) {
-        snprintf( url, sizeof(url), "https://www.youtube.com/tv?%s&%s&inApp=true", payload, additionalDataUrl);
+        snprintf( url, sizeof(url), "%s?%s&%s&inApp=true", curAppForDial->url, additionalDataUrl, payload);
     } else if (strlen(payload)) {
-        snprintf( url, sizeof(url), "https://www.youtube.com/tv?%s&inApp=true", payload);
+        snprintf( url, sizeof(url), "%s?%s&inApp=true", curAppForDial->url, payload);
     } else {
-      snprintf( url, sizeof(url), "https://www.youtube.com/tv&inApp=true");
+      snprintf( url, sizeof(url), "%s&inApp=true", curAppForDial->url);
     }
 
-    if(activateApp("youtube",url) == 0)
+    if(activateApp(curAppForDial->callsign, url) == 0)
         return kDIALStatusRunning;
-    return kDIALStatusStopped;;
+    return kDIALStatusStopped;
 }
 
 static DIALStatus youtube_hide(DIALServer *ds, const char *app_name,
                                         DIAL_run_t *run_id, void *callback_data) {
-    return hideApp("Cobalt") ? kDIALStatusHide : kDIALStatusError;
+    matchAppInfo(app_name);
+    return hideApp(curAppForDial->callsign) ? kDIALStatusHide : kDIALStatusError;
 }
         
 static DIALStatus youtube_status(DIALServer *ds, const char *appname,
                                  DIAL_run_t run_id, int *pCanStop, void *callback_data) {
     if (pCanStop) *pCanStop = 1;
-    appStatus("Cobalt");
+    matchAppInfo(appname);
+    return appStatus(curAppForDial->callsign);
 }
 
 static void youtube_stop(DIALServer *ds, const char *appname, DIAL_run_t run_id,
                          void *callback_data) {
-    printf("\n\n ** KILL YouTube **\n\n");
-    deActivateApp("youtube");
+    printf("\n\n ** KILL YouTube: %s **\n\n", appname);
+    matchAppInfo(appname);
+    deActivateApp(curAppForDial->callsign);
 }
 
 void run_ssdp(int port, const char *pFriendlyName, const char * pModelName, const char *pUuid);
@@ -172,17 +196,19 @@ void runDial(void)
     struct DIALAppCallbacks cb_yt = {youtube_start, youtube_hide, youtube_stop, youtube_status};
     struct DIALAppCallbacks cb_system = {system_start, system_hide, NULL, system_status};
 
-#if defined DEBUG
-    if (DIAL_register_app(ds, "Netflix", &cb_nf, NULL, 1, "https://netflix.com https://www.netflix.com https://port.netflix.com:123 proto://*") == -1 ||
-        DIAL_register_app(ds, "YouTube", &cb_yt, NULL, 1, "https://youtube.com https://www.youtube.com https://*.youtube.com:443 https://port.youtube.com:123 package:com.google.android.youtube package:com.google.ios.youtube proto:*") == -1 ||
-#else
-    if (DIAL_register_app(ds, "Netflix", &cb_nf, NULL, 1, "https://netflix.com https://www.netflix.com") == -1 ||
-        DIAL_register_app(ds, "YouTube", &cb_yt, NULL, 1, "https://youtube.com https://*.youtube.com package:*") == -1 ||
-#endif
-        DIAL_register_app(ds, "system", &cb_system, NULL, 1, "") == -1)
-    {
-        printf("Unable to register DIAL applications.\n");
-    } else if (!DIAL_start(ds)) {
+    struct appInfo* temp =  appInfoList;
+    struct DIALAppCallbacks* appHandler;
+    while(temp->next) {
+        temp = temp->next;
+        if (!strcmp(temp->handler, "YouTube")) {
+            appHandler = &cb_yt;
+            if (DIAL_register_app(ds, temp->name, appHandler, NULL, 1, "https://youtube.com https://*.youtube.com package:*") == -1) 
+                printf("Unable to register DIAL application : %s.\n", temp->name);
+        }
+        else continue;
+    }
+
+    if (!DIAL_start(ds)) {
         printf("Unable to start DIAL master listening thread.\n");
     } else {
         gDialPort = DIAL_get_port(ds);
@@ -192,6 +218,20 @@ void runDial(void)
         DIAL_stop(ds);
     }
     free(ds);
+    //free the list
+    struct appInfo* temp1 =  appInfoList -> next;
+    struct appInfo* temp2;
+    while (temp1) {
+        temp2 = temp1 -> next;
+        free(temp1->name);
+        free(temp1->handler);
+        free(temp1->callsign);
+        free(temp1->hide);
+        free(temp1->url);
+        free(temp1);
+        temp1 = temp2;
+    }
+    free(appInfoList);
 }
 
 static void setValue( char * pSource, char dest[] )
@@ -253,6 +293,7 @@ int main(int argc, char* argv[])
     setDialProperty();
 
     listenIpChange();
+    loadJson(JSONFILEPATH);
     runDial();
 
     return 0;
