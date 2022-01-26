@@ -29,20 +29,20 @@ int activateApp(const char *callsign, const char *url) {
       ret = g_wpe_system->Invoke(2000, "setPowerState", powerParams, powerResult);
       std::cout << "amldial-system setPowerState() return value:" << ret << std::endl;
   }
-  // Config the app to be activated
-  if (!strcmp(curAppForDial->handler, "YouTube")) {
-    JsonObject launchtype = JsonObject("{\"launchtype\": \"launch=dial\"}");
-    launchtype.Set("url", url);
-    ret = g_wpe_contoller->Set<JsonObject>(1000, std::string("configitem@") + callsign, launchtype);
-    std::cout << "amldial-controller configItem@" <<  std::string(callsign) << "return value:" << ret << std::endl;
-  }
-  else
-    return 1;
-  // Activate the app
-  if (strcmp(getAppStatus(callsign),"suspended") == 0) {
+  DIALStatus appStatus = getAppStatus(callsign);
+  if (appStatus == kDIALStatusHide) {
     resumeApp(callsign);
   }
-  if (strcmp(getAppStatus(callsign),"deactivated") == 0) {
+  if (appStatus == kDIALStatusStopped) {
+    // Config the app to be activated
+    if (!strcmp(curAppForDial->handler, "YouTube")) {
+      JsonObject launchtype = JsonObject("{\"launchtype\": \"launch=dial\"}");
+      if (!strcmp(curAppForDial->name, "YouTubeTV") || !strcmp(curAppForDial->name, "YouTubeKids")) {
+        launchtype.Set("url", url);
+      }
+      ret = g_wpe_contoller->Set<JsonObject>(1000, std::string("configitem@") + callsign, launchtype);
+      std::cout << "amldial-controller configItem@" <<  std::string(callsign) << "return value:" << ret << std::endl;
+    }
     JsonObject callsignObj = JsonObject(std::string("{\"callsign\": \"") + callsign + "\"}");
     ret =
         g_wpe_contoller->Set<JsonObject>(1000, "activate", callsignObj);
@@ -119,7 +119,7 @@ bool getDialName(const char *name, char *ret) {
   return false;
 }
 
- const char* getAppStatus(const char *callsign) {
+DIALStatus getAppStatus(const char *callsign) {
   ASSERT(g_wpe_contoller != nullptr);
   JsonArray getStatusResult;
   int result = g_wpe_contoller->Get<JsonArray>(
@@ -128,17 +128,20 @@ bool getDialName(const char *name, char *ret) {
     if (getStatusResult.Elements().Count() == 1) {
       JsonObject obj = getStatusResult[0].Object();
       if (obj.HasLabel("state")) {
-        const char *status_str[] = {"resumed", "suspended", "deactivated"};
         const std::string &state = obj["state"].String();
         std::cout << "amldial-" << callsign << " state is:" << state << std::endl;
-        for (int i=0; i<sizeof(status_str)/sizeof(status_str[0]); i++)
-          if (state == status_str[i])
-            return status_str[i];
+        if(state == "resumed")
+          return kDIALStatusRunning;
+        else if(state == "suspended")
+          return kDIALStatusHide;
+        else if(state == "deactivated")
+          return kDIALStatusStopped;
+        else return kDIALStatusError;
       }
     } 
   }
   std::cout << "amldial-getAppStatus() failed" << std::endl;
-  return "deactivated";
+  return kDIALStatusError;
 }
 
 bool hideApp(const char* callsign) {

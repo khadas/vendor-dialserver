@@ -3,13 +3,13 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+#include "dial_server.h"
 extern void addNewIpToMulticast();
 int activateApp(const char* callsign, const char* url);
 int deActivateApp(const char* callsign);
 int listenIpChange();
 bool getDialName(const char* name, char* ret);
-const char* getAppStatus(const char* callsign);
+DIALStatus getAppStatus(const char* callsign);
 extern bool _appHidden;
 bool hideApp(const char* callsign);
 bool resumeApp(const char* callsign);

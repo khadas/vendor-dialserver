@@ -85,28 +85,6 @@ void signalHandler(int signal)
     ssdp_running = 0;
 }
 
-/*
- * This function will walk /proc and look for the application in
- * /proc/<PID>/comm. and /proc/<PID>/cmdline to find it's command (executable
- * name) and command line (if needed).
- * Implementors can override this function with an equivalent.
- */
-DIALStatus appStatus(const char *callsign) {
-    if(strcmp(getAppStatus(callsign),"resumed")  == 0) {
-        printf("amldial-appStatus %s\n",getAppStatus(callsign));
-        return kDIALStatusRunning;
-    }
-    else if(strcmp(getAppStatus(callsign),"suspended")  == 0) {
-        printf("amldial-appStatus %s\n",getAppStatus(callsign));
-        return kDIALStatusHide;
-    }
-    else if(strcmp(getAppStatus(callsign),"deactivated")  == 0) {
-        printf("amldial-appStatus %s\n",getAppStatus(callsign));
-        return kDIALStatusStopped;
-    }
-    else return kDIALStatusError;
-}
-
 /* Compare the applications last launch parameters with the new parameters.
  * If they match, return false
  * If they don't match, return true
@@ -167,7 +145,7 @@ static DIALStatus youtube_status(DIALServer *ds, const char *appname,
                                  DIAL_run_t run_id, int *pCanStop, void *callback_data) {
     if (pCanStop) *pCanStop = 1;
     matchAppInfo(appname);
-    return appStatus(curAppForDial->callsign);
+    return getAppStatus(curAppForDial->callsign);
 }
 
 static void youtube_stop(DIALServer *ds, const char *appname, DIAL_run_t run_id,
