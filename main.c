@@ -61,10 +61,6 @@ bool _appHidden = false;
 struct appInfo* appInfoList = NULL;
 struct appInfo* curAppForDial = NULL;
 
-//used to netflix start function.(it is useless now)
-char *spAppNetflix = "netflix";      // name of the netflix executable
-static char *spDefaultNetflix = "../../../src/platform/qt/netflix";
-char spNetflix[BUFSIZE];
 //set the value of spDataDir,and putenv(spDataDir) in old runApplication() function.(it is useless now)
 static char spDataDir[BUFSIZE];
 static char *spNfDataDir = "NF_DATA_DIR=";
@@ -83,18 +79,6 @@ void signalHandler(int signal)
             break;
     }
     ssdp_running = 0;
-}
-
-/* Compare the applications last launch parameters with the new parameters.
- * If they match, return false
- * If they don't match, return true
- */
-int shouldRelaunch(
-    DIALServer *pServer,
-    const char *pAppName,
-    const char *args )
-{
-    return ( strncmp( DIAL_get_payload(pServer, pAppName), args, DIAL_MAX_PAYLOAD ) != 0 );
 }
 
 void matchAppInfo(const char *appname) {
@@ -183,6 +167,11 @@ void runDial(void)
             if (DIAL_register_app(ds, temp->name, appHandler, NULL, 1, "https://youtube.com https://*.youtube.com package:*") == -1) 
                 printf("Unable to register DIAL application : %s.\n", temp->name);
         }
+        else if (!strcmp(temp->handler, "Netflix")) {
+                appHandler = &cb_nf;
+                if (DIAL_register_app(ds, temp->name, appHandler, NULL, 1, "https://netflix.com https://www.netflix.com") == -1) 
+                    printf("Unable to register DIAL application : %s.\n", temp->name);
+            } 
         else continue;
     }
 

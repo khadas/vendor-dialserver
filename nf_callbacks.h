@@ -27,6 +27,8 @@
 #define _NF_CALLBACKS_H
 
 #include "dial_server.h"
+#include <stdbool.h>
+#include "thunder_api.h"
 
 DIALStatus netflix_start(DIALServer *ds, const char *appname,
                             const char *payload, const char* query_string,

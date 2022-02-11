@@ -21,6 +21,13 @@
     "callsign":"CobaltKids",
     "hide":true,
     "url":"https://www.youtube.com/tv_kids"
+   },
+   {
+    "name":"Netflix",
+    "handler":"Netflix",
+    "callsign":"Netflix",
+    "hide":true,
+    "url":""
    }
   ]
  }

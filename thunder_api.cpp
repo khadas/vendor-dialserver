@@ -43,6 +43,10 @@ int activateApp(const char *callsign, const char *url) {
       ret = g_wpe_contoller->Set<JsonObject>(1000, std::string("configitem@") + callsign, launchtype);
       std::cout << "amldial-controller configItem@" <<  std::string(callsign) << "return value:" << ret << std::endl;
     }
+    if (!strcmp(curAppForDial->handler, "Netflix"))
+      WPEFramework::Core::SystemInfo::SetEnvironment(_T("ONE_TIME_QUERY_STRING_OVERRIDE"), url);
+    
+    // Activate the app
     JsonObject callsignObj = JsonObject(std::string("{\"callsign\": \"") + callsign + "\"}");
     ret =
         g_wpe_contoller->Set<JsonObject>(1000, "activate", callsignObj);
@@ -61,8 +65,6 @@ int activateApp(const char *callsign, const char *url) {
             .Invoke(2000, "deeplink", launchURL, setUrlResult);
     std::cout << "amldial-cobalt.. deeplink() return value:" << ret << std::endl;
   }
-  else
-    return 1;
   return 0;
 }
 

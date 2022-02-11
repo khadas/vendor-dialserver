@@ -197,13 +197,14 @@ static void handle_app_start(struct mg_connection *conn,
                         dial_port, app_name);
             }
             fprintf(stderr, "Starting the app with params %s\n", body);
-            if (origin_header == NULL) {
+            if (!origin_header && strcmp(app_name,"Netflix")) {
                 mg_send_http_error(conn, 403, "Forbidden", "Forbidden");
                 ds_unlock(ds);
                 return;
             }
             int response200Flag = 0;
-            if ((app->state = app->callbacks.status_cb(ds, app_name, app->run_id, NULL, app->callback_data)) == kDIALStatusRunning)
+            if (((app->state = app->callbacks.status_cb(ds, app_name, app->run_id, NULL, app->callback_data)) 
+                == kDIALStatusRunning) && strcmp(app_name,"Netflix"))
                 response200Flag = 1;
             app->state = app->callbacks.start_cb(ds, app_name, body,
                                                  request_info->query_string,
