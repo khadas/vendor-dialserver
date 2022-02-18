@@ -29,6 +29,13 @@
     "callsign":"Netflix",
     "hide":true,
     "url":""
+   },
+   {
+    "name":"AmazonInstantVideo",
+    "handler":"Amazon",
+    "callsign":"Amazon",
+    "hide":true,
+    "url":""
    }
   ]
  }

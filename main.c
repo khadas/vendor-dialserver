@@ -43,6 +43,7 @@
 #include "url_lib.h"
 #include "nf_callbacks.h"
 #include "system_callbacks.h"
+#include "amazon_callbacks.h"
 
 #include "thunder_api.h"
 #include <net/if.h>
@@ -65,7 +66,7 @@ static char spDataDir[BUFSIZE];
 static char *spNfDataDir = "NF_DATA_DIR=";
 static char *spDefaultData="../../../src/platform/qt/data";
 //used to system(app) callback function.(it is useless now)
-char spSleepPassword[BUFSIZE]; 
+char spSleepPassword[BUFSIZE];
 
 extern int ssdp_running;
 void signalHandler(int signal)
@@ -123,7 +124,7 @@ static DIALStatus youtube_hide(DIALServer *ds, const char *app_name,
     matchAppInfo(app_name);
     return hideApp(curAppForDial->callsign) ? kDIALStatusHide : kDIALStatusError;
 }
-        
+
 static DIALStatus youtube_status(DIALServer *ds, const char *appname,
                                  DIAL_run_t run_id, int *pCanStop, void *callback_data) {
     if (pCanStop) *pCanStop = 1;
@@ -148,7 +149,7 @@ void runDial(void)
         printf("Unable to create DIAL server.\n");
         return;
     }
-    
+
     struct DIALAppCallbacks cb_nf;
     cb_nf.start_cb = netflix_start;
     cb_nf.hide_cb = netflix_hide;
@@ -156,6 +157,7 @@ void runDial(void)
     cb_nf.status_cb = netflix_status;
     struct DIALAppCallbacks cb_yt = {youtube_start, youtube_hide, youtube_stop, youtube_status};
     struct DIALAppCallbacks cb_system = {system_start, system_hide, NULL, system_status};
+    struct DIALAppCallbacks cb_amazon = {amazon_start, amazon_hide, amazon_stop, amazon_status};
 
     struct appInfo* temp =  appInfoList;
     struct DIALAppCallbacks* appHandler;
@@ -163,13 +165,18 @@ void runDial(void)
         temp = temp->next;
         if (!strcmp(temp->handler, "YouTube")) {
             appHandler = &cb_yt;
-            if (DIAL_register_app(ds, temp->name, appHandler, NULL, 1, "https://youtube.com https://*.youtube.com package:*") == -1) 
+            if (DIAL_register_app(ds, temp->name, appHandler, NULL, 1, "https://youtube.com https://*.youtube.com package:*") == -1)
                 printf("Unable to register DIAL application : %s.\n", temp->name);
         }
         else if (!strcmp(temp->handler, "Netflix")) {
             appHandler = &cb_nf;
-            if (DIAL_register_app(ds, temp->name, appHandler, NULL, 1, "https://netflix.com https://www.netflix.com") == -1) 
+            if (DIAL_register_app(ds, temp->name, appHandler, NULL, 1, "https://netflix.com https://www.netflix.com") == -1)
                 printf("Unable to register DIAL application : %s.\n", temp->name);
+        }
+        else if (!strcmp(temp->handler, "Amazon")) {
+                appHandler = &cb_amazon;
+                if (DIAL_register_app(ds, temp->name, appHandler, NULL, 1, "https://*.com https://www.*.com") == -1)
+                    printf("Unable to register DIAL application : %s.\n", temp->name);
         }
         else continue;
     }

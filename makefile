@@ -1,7 +1,7 @@
 .PHONY: clean
 .DEFAULT_GOAL=all
 
-OBJS := main.o dial_server.o mongoose.o quick_ssdp.o url_lib.o dial_data.o system_callbacks.o nf_callbacks.o
+OBJS := main.o dial_server.o mongoose.o quick_ssdp.o url_lib.o dial_data.o system_callbacks.o nf_callbacks.o amazon_callbacks.o
 OBJS_CXX := thunder_api.o
 HEADERS := $(wildcard *.h)
 

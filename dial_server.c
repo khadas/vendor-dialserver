@@ -197,18 +197,18 @@ static void handle_app_start(struct mg_connection *conn,
                         dial_port, app_name);
             }
             fprintf(stderr, "Starting the app with params %s\n", body);
-            if (!origin_header && strcmp(app_name,"Netflix")) {
+            if (!origin_header && strstr(app_name, "YouTube")) {
                 mg_send_http_error(conn, 403, "Forbidden", "Forbidden");
                 ds_unlock(ds);
                 return;
             }
             int response200Flag = 0;
-            if (((app->state = app->callbacks.status_cb(ds, app_name, app->run_id, NULL, app->callback_data)) 
-                == kDIALStatusRunning) && strcmp(app_name,"Netflix"))
+            if (((app->state = app->callbacks.status_cb(ds, app_name, app->run_id, NULL, app->callback_data))
+                == kDIALStatusRunning) && strstr(app_name, "YouTube"))
                 response200Flag = 1;
             app->state = app->callbacks.start_cb(ds, app_name, body,
                                                  request_info->query_string,
-                                                 additional_data_param, 
+                                                 additional_data_param,
                                                  &app->run_id,
                                                  app->callback_data);
             if ((app->state == kDIALStatusRunning)&&(response200Flag == 0)) {
@@ -265,7 +265,7 @@ static void handle_app_status(struct mg_connection *conn,
         clientVersion = atof(clientVersionStr);
         free(clientVersionStr);
     }
-    
+
     if (!ds_lock(ds)) {
         mg_send_http_error(conn, 500, "500 Internal Server Error", "500 Internal Server Error");
         return;
@@ -327,12 +327,12 @@ static void handle_app_status(struct mg_connection *conn,
                                           app->callback_data);
 
     DIALStatus localState = app->state;
-    
-    // overwrite app->state if cilent version < 2.1    
+
+    // overwrite app->state if cilent version < 2.1
     if (clientVersion < 2.09 && localState==kDIALStatusHide){
         localState=kDIALStatusStopped;
     }
-    
+
     char dial_state_str[20];
     switch(localState){
     case kDIALStatusHide:
@@ -344,7 +344,7 @@ static void handle_app_status(struct mg_connection *conn,
     default:
         strcpy (dial_state_str, "stopped");
     }
-    
+
     mg_printf(
             conn,
             "HTTP/1.1 200 OK\r\n"
@@ -361,7 +361,7 @@ static void handle_app_status(struct mg_connection *conn,
             "%s"
             "\n  </additionalData>\n"
             "</service>\r\n",
-            origin_header,            
+            origin_header,
             DIAL_VERSION,
             app->name,
             canStop ? "true" : "false",
@@ -425,13 +425,13 @@ static void handle_app_hide(struct mg_connection *conn,
         return;
     }
     app = *find_app(ds, app_name);
-  
+
     // update the application state
     if (app) {
         app->state = app->callbacks.status_cb(ds, app_name, app->run_id,
                                               &canStop, app->callback_data);
     }
-    
+
     if (!app || (app->state != kDIALStatusRunning && app->state != kDIALStatusHide)) {
         mg_send_http_error(conn, 404, "Not Found", "Not Found");
     } else {
@@ -521,7 +521,7 @@ static void handle_dial_data(struct mg_connection *conn,
  *
  * This function assumes that the candidate value is well-formed, meaning
  * it will not include invalid characters or a non-numeric port number.
- * 
+ *
  * @param origin the origin header value, which must begin with https://
  * @param candidate the authorized origin value, which must begin with
  *        https://
@@ -531,7 +531,7 @@ static int host_matches(const char *origin, const char *candidate) {
     // Make sure there is something to compare.
     if (!origin || !candidate)
         return 0;
-    
+
     // Make sure the origin and candidate both begin with HTTPS.
     const size_t https_len= strlen(gHttpsProto);
     if (strncmp(origin, gHttpsProto, https_len) != 0 ||
@@ -539,7 +539,7 @@ static int host_matches(const char *origin, const char *candidate) {
     {
         return 0;
     }
-    
+
     // For the rest of the check, we only care about the hostname and optional
     // port number.
     const char * origin_host = origin + https_len;
@@ -662,7 +662,7 @@ static int is_uri_in_list(const char *origin, const char *list) {
         return 0;
 
     int isHttps = (strncmp(origin, gHttpsProto, strlen(gHttpsProto)) == 0);
-    
+
     const char * scanPointer = list;
     const char * spacePointer;
     unsigned int substringSize = 257;
@@ -671,8 +671,8 @@ static int is_uri_in_list(const char *origin, const char *list) {
         return 0;
     }
     while ((spacePointer = strchr(scanPointer, ' ')) != NULL) {
-        int copyLength = spacePointer - scanPointer;      
-      
+        int copyLength = spacePointer - scanPointer;
+
         // protect against buffer overflow
         if (copyLength >= substringSize) {
             substringSize = copyLength + 1;
@@ -708,7 +708,7 @@ static int is_allowed_origin(DIALServer* ds, char * origin, const char * app_nam
     if (!origin || strlen(origin)==0) {
         return 1;
     }
-    
+
     if (!ds_lock(ds)) {
         // If we can't check, fail in favor of safety.
         return 0;
@@ -734,7 +734,7 @@ static int is_allowed_origin(DIALServer* ds, char * origin, const char * app_nam
 #define HIDE_URI "/hide"
 
 static void *options_response(DIALServer *ds, struct mg_connection *conn, char *origin_header, const char* app_name, const char* methods)
-{    
+{
     mg_printf(
               conn,
               "HTTP/1.1 204 No Content\r\n"
