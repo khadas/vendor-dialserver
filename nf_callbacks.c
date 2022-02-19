@@ -51,13 +51,13 @@ DIALStatus netflix_start(DIALServer *ds, const char *appname,
                                 DIAL_run_t *run_id, void *callback_data) {
     memset( sQueryParam, 0, sizeof(sQueryParam) );
     strncpy( sQueryParam, defaultLaunchParam, sizeof(sQueryParam) - 1);
+    strcat( sQueryParam, "&dial=" );
     if(strlen(payload))
     {
         char * pUrlEncodedParams;
         pUrlEncodedParams = url_encode( payload );
         if( pUrlEncodedParams ){
-            if (strlen(sQueryParam) + sizeof("&dial=") + strlen(pUrlEncodedParams) < sizeof(sQueryParam)) {
-                strcat( sQueryParam, "&dial=" );
+            if (strlen(sQueryParam) + strlen(pUrlEncodedParams) < sizeof(sQueryParam)) {
                 strcat( sQueryParam, pUrlEncodedParams );
                 free( pUrlEncodedParams );
             } else {
