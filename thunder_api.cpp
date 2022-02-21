@@ -65,6 +65,11 @@ int activateApp(const char *callsign, const char *url) {
             .Invoke(2000, "deeplink", launchURL, setUrlResult);
     std::cout << "amldial-cobalt.. deeplink() return value:" << ret << std::endl;
   }
+  // SetFocus
+  JsonObject setFocusParams, setFocusResult;
+  setFocusParams.Set("client",callsign);
+  ret = g_wpe_rdkshell->Invoke(2000, "setFocus", setFocusParams, setFocusResult);
+  std::cout << "amldial-rdkshell setFocus() return value:" << ret << std::endl;
   return 0;
 }
 
