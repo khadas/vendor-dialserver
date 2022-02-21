@@ -820,17 +820,14 @@ static void *request_handler(enum mg_event event, struct mg_connection *conn,
             // Check authorized origins.
             // if ((origin_header && !is_allowed_origin(ds, origin_header, app_name))||(origin_header == NULL)) {
             if (origin_header && !is_allowed_origin(ds, origin_header, app_name)) {
-                if(!strcmp(app_name,"YouTube") || !strcmp(app_name,"Netflix") || !strcmp(app_name,"system")) {
+                if(!strcmp(app_name,"YouTube") || !strcmp(app_name,"Netflix") || !strcmp(app_name,"system") ||
+                   !strcmp(app_name,"YouTubeTV") || !strcmp(app_name,"YouTubeKids")) {
                     mg_send_http_error(conn, 403, "Forbidden", "Forbidden");
-                    fprintf(stderr,"lalala: here1\n");
                     return "done";
-                    fprintf(stderr,"lalala: here2\n");
                 }
                 else {
                     mg_send_http_error(conn, 404, "Not Found", "Not Found");
-                    fprintf(stderr,"lalala: here3\n");
                     return "done";
-                    fprintf(stderr,"lalala: here4\n");
                 }
             }
 
@@ -838,7 +835,6 @@ static void *request_handler(enum mg_event event, struct mg_connection *conn,
             if (!strcmp(request_info->request_method, "OPTIONS")) {
                 return options_response(ds, conn, origin_header, app_name, "GET, POST, OPTIONS");
             }
-            fprintf(stderr,"lalala: here\n");
             // start app
             if (!strcmp(request_info->request_method, "POST")) {
                 fprintf(stderr,"lalala: the request origin head is %s\n",origin_header);
