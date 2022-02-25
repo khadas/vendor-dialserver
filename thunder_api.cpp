@@ -14,6 +14,7 @@ static WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>
 
 extern "C" {
 int activateApp(const char *callsign, const char *url) {
+  std::cout << "the launchurl is :" << std::string(url) << std::endl;
   uint32_t ret;
   // Wake On Lan
   JsonObject powerParams;
@@ -32,7 +33,19 @@ int activateApp(const char *callsign, const char *url) {
   DIALStatus appStatus = getAppStatus(callsign);
   if (appStatus == kDIALStatusHide) {
     resumeApp(callsign);
+    if (!strcmp(curAppForDial->handler, "Netflix")) {
+      JsonObject systemCmdParams, systemCmdResult;
+      systemCmdParams.Set("Command",url);
+      std::string linkAppCallsign = callsign;
+      linkAppCallsign.append(".1");
+      ret =
+          WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>(
+              linkAppCallsign.c_str())
+              .Invoke(2000, "systemcommand", systemCmdParams, systemCmdResult);
+      std::cout << "amldial-netflix systemcommand() return value:" << ret << std::endl;
+    }
   }
+
   if (appStatus == kDIALStatusStopped) {
     // Config the app to be activated
     if (!strcmp(curAppForDial->handler, "YouTube")) {
@@ -43,9 +56,12 @@ int activateApp(const char *callsign, const char *url) {
       ret = g_wpe_contoller->Set<JsonObject>(1000, std::string("configitem@") + callsign, launchtype);
       std::cout << "amldial-controller configItem@" <<  std::string(callsign) << "return value:" << ret << std::endl;
     }
-    if (!strcmp(curAppForDial->handler, "Netflix"))
-      WPEFramework::Core::SystemInfo::SetEnvironment(_T("ONE_TIME_QUERY_STRING_OVERRIDE"), url);
-    
+    if (!strcmp(curAppForDial->handler, "Netflix")) {
+      JsonObject queryString;
+      queryString.Set("querystring",url);
+      ret = g_wpe_contoller->Set<JsonObject>(1000, std::string("configitem@") + callsign, queryString);
+      std::cout << "amldial-controller configItem@" <<  std::string(callsign) << "return value:" << ret << std::endl;
+    }
     // Activate the app
     JsonObject callsignObj = JsonObject(std::string("{\"callsign\": \"") + callsign + "\"}");
     ret =

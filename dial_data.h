@@ -32,7 +32,7 @@
 /*
  * Slash-terminated directory of where to persist the DIAL data.
  */
-#define DIAL_DATA_DIR "/tmp/"
+#define DIAL_DATA_DIR "/tmp/AmlDial/"
 
 /*
  * The maximum DIAL data payload accepted per the 'DIAL extension for smooth

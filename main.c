@@ -57,6 +57,7 @@ static char spUuid[BUFSIZE] = "deadbeef-wlfy-beef-dead-";
 extern bool wakeOnWifiLan;  //set the value to true to support WoL/WoWLAN in main(), false to nonosupport;default is true.
 static int gDialPort;
 static char *spDefaultUuid = "deadbeef-wlfy-beef-dead-beefdeadbeef";
+static char *spDefaulfName = "AMLOGICDEV";
 bool _appHidden = false;
 struct appInfo* appInfoList = NULL;
 struct appInfo* curAppForDial = NULL;
@@ -168,10 +169,10 @@ void runDial(void)
                 printf("Unable to register DIAL application : %s.\n", temp->name);
         }
         else if (!strcmp(temp->handler, "Netflix")) {
-                appHandler = &cb_nf;
-                if (DIAL_register_app(ds, temp->name, appHandler, NULL, 1, "https://netflix.com https://www.netflix.com") == -1) 
-                    printf("Unable to register DIAL application : %s.\n", temp->name);
-            } 
+            appHandler = &cb_nf;
+            if (DIAL_register_app(ds, temp->name, appHandler, NULL, 1, "https://netflix.com https://www.netflix.com") == -1) 
+                printf("Unable to register DIAL application : %s.\n", temp->name);
+        }
         else continue;
     }
 
@@ -181,7 +182,6 @@ void runDial(void)
         gDialPort = DIAL_get_port(ds);
         printf("launcher listening on gDialPort %d\n", gDialPort);
         run_ssdp(gDialPort, spFriendlyName, spModelName, spUuid);
-        
         DIAL_stop(ds);
     }
     free(ds);
@@ -242,9 +242,14 @@ bool get_mac(char* mac, const char *if_typ)
 void setDialProperty() {
     char ret[128] = {0};
     char mac_addr[18] = {0};
-    setValue(getDialName("DIALSERVER_NAME",ret) ? ret : "Platform-Amlogic-Defult",spFriendlyName);
+    // setValue(getDialName("DIALSERVER_NAME",ret) ? ret : "Platform-Amlogic-Defult",spFriendlyName);
     setValue(getDialName("MODEL_NAME",ret) ? ret : "OTT-Defult",spModelName);
     get_mac(mac_addr, "eth0") ? strcat(spUuid, mac_addr) : setValue( spDefaultUuid, spUuid );
+    char* fName = getenv("FRIENDLY_NAME");
+    if (fName == NULL) 
+        strcat(spFriendlyName, spDefaulfName);
+    else 
+        strcat(spFriendlyName, fName);
 }
 
 int main(int argc, char* argv[])
