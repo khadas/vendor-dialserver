@@ -5,6 +5,7 @@ extern "C" {
 #endif
 #include "dial_server.h"
 extern void addNewIpToMulticast();
+extern int ssdp_running;
 int activateApp(const char* callsign, const char* url);
 int deActivateApp(const char* callsign);
 int listenIpChange();

@@ -105,10 +105,11 @@ void changeMulticast(const JsonObject &s) {
 
 int listenIpChange() {
   bool wpe_ready = false;
-  while (!wpe_ready) {
+  while (!wpe_ready && ssdp_running) {
     g_wpe_network =
         new WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>(
             "org.rdk.Network.1");
+    usleep(1000000);
     int result;
     if ((result = g_wpe_network->Subscribe<JsonObject>(
              1000, "onIPAddressStatusChanged", &changeMulticast)) ==
@@ -117,7 +118,6 @@ int listenIpChange() {
       wpe_ready = true;
     } else {
       std::cout << "amldial-wpe not ready\n" << std::endl;
-      usleep(1000000);
       delete g_wpe_network;
     }
   }
