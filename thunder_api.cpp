@@ -60,6 +60,7 @@ int activateApp(const char *callsign, const char *url) {
     if (!strcmp(curAppForDial->handler, "Netflix")) {
       JsonObject queryString;
       queryString.Set("querystring",url);
+      queryString.Set("launchtosuspend",false);
       ret = g_wpe_contoller->Set<JsonObject>(1000, std::string("configitem@") + callsign, queryString);
       std::cout << "amldial-controller configItem@" <<  std::string(callsign) << "return value:" << ret << std::endl;
     }
