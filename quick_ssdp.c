@@ -81,9 +81,9 @@ static const char wakeup_header[] = "WAKEUP: MAC=%s;Timeout=%d\r\n";
 static char ip_addr[INET6_ADDRSTRLEN] = "127.0.0.1";
 static int dial_port = 0;
 static int my_port = 0;
-static char friendly_name[256];
-static char uuid[256];
-static char model_name[256];
+char friendly_name[256];
+char uuid[256];
+char model_name[256];
 static struct mg_context *ctx;
 
 bool wakeOnWifiLan=true;

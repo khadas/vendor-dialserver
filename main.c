@@ -56,8 +56,6 @@ static char spModelName[BUFSIZE];
 static char spUuid[BUFSIZE] = "deadbeef-wlfy-beef-dead-";
 extern bool wakeOnWifiLan;  //set the value to true to support WoL/WoWLAN in main(), false to nonosupport;default is true.
 static int gDialPort;
-static char *spDefaultUuid = "deadbeef-wlfy-beef-dead-beefdeadbeef";
-static char *spDefaulfName = "AMLOGICDEV";
 bool _appHidden = false;
 struct appInfo* appInfoList = NULL;
 struct appInfo* curAppForDial = NULL;
@@ -201,57 +199,6 @@ void runDial(void)
     free(appInfoList);
 }
 
-static void setValue( char * pSource, char dest[] )
-{
-    // Destination is always one of our static buffers with size BUFSIZE
-    memset( dest, 0, BUFSIZE );
-    int length = (strlen(pSource) < BUFSIZE - 1) ? strlen(pSource) : (BUFSIZE - 1);
-    memcpy( dest, pSource, length );
-}
-
-bool get_mac(char* mac, const char *if_typ)
-{
-    struct ifreq tmp;
-    int sock_mac;
-    char mac_addr[18];
-    sock_mac = socket(AF_INET, SOCK_STREAM, 0);
-    if( sock_mac == -1)
-    {
-        return false;
-    }
-    memset(&tmp,0,sizeof(tmp));
-    strncpy(tmp.ifr_name, if_typ,sizeof(tmp.ifr_name)-1 );
-    if( (ioctl( sock_mac, SIOCGIFHWADDR, &tmp)) < 0 )
-    {
-        close(sock_mac);
-        return false;
-    }
-    sprintf(mac_addr, "%02x%02x%02x%02x%02x%02x",
-            (unsigned char)tmp.ifr_hwaddr.sa_data[0],
-            (unsigned char)tmp.ifr_hwaddr.sa_data[1],
-            (unsigned char)tmp.ifr_hwaddr.sa_data[2],
-            (unsigned char)tmp.ifr_hwaddr.sa_data[3],
-            (unsigned char)tmp.ifr_hwaddr.sa_data[4],
-            (unsigned char)tmp.ifr_hwaddr.sa_data[5]
-            );
-    close(sock_mac);
-    memcpy(mac,mac_addr,strlen(mac_addr));
-    return true;
-}
-
-void setDialProperty() {
-    char ret[128] = {0};
-    char mac_addr[18] = {0};
-    // setValue(getDialName("DIALSERVER_NAME",ret) ? ret : "Platform-Amlogic-Defult",spFriendlyName);
-    setValue(getDialName("MODEL_NAME",ret) ? ret : "OTT-Defult",spModelName);
-    get_mac(mac_addr, "eth0") ? strcat(spUuid, mac_addr) : setValue( spDefaultUuid, spUuid );
-    char* fName = getenv("FRIENDLY_NAME");
-    if (fName == NULL) 
-        strcat(spFriendlyName, spDefaulfName);
-    else 
-        strcat(spFriendlyName, fName);
-}
-
 int main(int argc, char* argv[])
 {
     struct sigaction action;
@@ -262,10 +209,10 @@ int main(int argc, char* argv[])
     sigaction(SIGINT, &action, NULL);
 
     srand(time(NULL));
-    setDialProperty();
 
     listenIpChange();
     loadJson(JSONFILEPATH);
+    setDialProperty(spFriendlyName, spUuid, spModelName);
     runDial();
 
     return 0;

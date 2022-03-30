@@ -3,6 +3,16 @@
 #include <iostream>
 #include <protocols/JSONRPCLink.h>
 
+#define PARAM_FRIENDLY_NAME "setup_friendly_name"
+#define PARAM_MODEL_NAME "information_model_name"
+#define MAXSIZE 256
+static char *spDefaultUuid = "deadbeef-wlfy-beef-dead-beefdeadbeef";
+static char *spDefaulFName = "AMLOGICDEV";
+static char *spDefaultMName = "OTT-Defult";
+#define ARRAY_SIZE(e) (sizeof(e) / sizeof(*(e)))
+
+const char *params_interest[] = {PARAM_FRIENDLY_NAME, PARAM_MODEL_NAME};
+
 static WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>
     *g_wpe_contoller = nullptr;
 static WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>
@@ -133,15 +143,81 @@ int listenIpChange() {
   g_wpe_system =
       new WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>(
           "org.rdk.System.1");
+  // usleep(1000000);
   return 0;
 }
 
-bool getDialName(const char *name, char *ret) {
-  // Get DIAL Server name , manufacturer name and model name
-  if (!AmlDeviceGetProperty(name, ret, 128)) {
-    return true;
+bool get_mac(char* mac, const char *if_typ)
+{
+  struct ifreq tmp;
+  int sock_mac;
+  sock_mac = socket(AF_INET, SOCK_STREAM, 0);
+  if (sock_mac == -1)
+  {
+      return false;
   }
-  return false;
+  memset(&tmp,0,sizeof(tmp));
+  strncpy(tmp.ifr_name, if_typ, sizeof(tmp.ifr_name)-1);
+  if ((ioctl( sock_mac, SIOCGIFHWADDR, &tmp)) < 0)
+  {
+      close(sock_mac);
+      return false;
+  }
+  sprintf(mac, "%02x%02x%02x%02x%02x%02x",
+          (unsigned char)tmp.ifr_hwaddr.sa_data[0],
+          (unsigned char)tmp.ifr_hwaddr.sa_data[1],
+          (unsigned char)tmp.ifr_hwaddr.sa_data[2],
+          (unsigned char)tmp.ifr_hwaddr.sa_data[3],
+          (unsigned char)tmp.ifr_hwaddr.sa_data[4],
+          (unsigned char)tmp.ifr_hwaddr.sa_data[5]
+          );
+  close(sock_mac);
+  return true;
+}
+
+void modifyDialProperty(const JsonObject &param) {
+  std::cout << "amldial-device property changed" << std::endl;
+  if (param.HasLabel(params_interest[0]) && !param[params_interest[0]].String().empty())
+    snprintf(friendly_name, MAXSIZE, "%s", param[params_interest[0]].String().c_str());
+  if (param.HasLabel(params_interest[1]) && !param[params_interest[2]].String().empty())
+    snprintf(model_name, MAXSIZE, "%s", param[params_interest[1]].String().c_str());
+}
+
+void setDialProperty(char *friendlyname, char *uuid, char *modelname) {
+  char mac_addr[18] = {0};
+  // get_mac(mac_addr, "eth0") ? strcat(uuid, mac_addr) : strncpy(uuid, spDefaultUuid, MAXSIZE-1);
+  if (get_mac(mac_addr, "eth0"))
+    strcat(uuid, mac_addr);
+  else 
+    snprintf(uuid, MAXSIZE, "%s", spDefaultUuid);
+  if (AmlDeviceGetProperty("DIALSERVER_NAME", friendlyname, MAXSIZE))
+    snprintf(friendlyname, MAXSIZE, "%s", spDefaulFName);
+  if (AmlDeviceGetProperty("MODEL_NAME", modelname, MAXSIZE))
+    snprintf(modelname, MAXSIZE, "%s", spDefaultMName);
+
+  JsonArray invokeArr;
+  JsonObject invokeResult;
+  for (int i = 0; i < ARRAY_SIZE(params_interest); i++)
+    invokeArr.Add(JsonValue(params_interest[i]));
+  uint32_t ret = g_wpe_system->Invoke<JsonArray, JsonObject>(2000, "getCfgParams", invokeArr, invokeResult);
+  if (ret != WPEFramework::Core::ERROR_NONE || !invokeResult.HasLabel("params")) {
+    std::cout << "amldial-getCfgParams() failed, return value:" << ret << std::endl;
+    fprintf(stderr,"in setDialProperty(),the properties: friendlyname: %s, uuid: %s, modelname: %s\n", friendlyname, uuid, modelname);
+    return;
+  }
+  JsonObject cfgParams = invokeResult["params"].Object();
+  // Match the dial properties with cfgparams: friendlyname, modelname
+  if (!cfgParams[params_interest[0]].String().empty())
+    snprintf(friendlyname, MAXSIZE, "%s", cfgParams[params_interest[0]].String().c_str());
+  if (!cfgParams[params_interest[1]].String().empty())
+    snprintf(modelname, MAXSIZE, "%s", cfgParams[params_interest[1]].String().c_str());
+
+  if ((ret = g_wpe_system->Subscribe<JsonObject>(
+             1000, "cfgParamsChanged", &modifyDialProperty)) ==
+        WPEFramework::Core::ERROR_NONE) {
+      std::cout << "amldial-subscribe cfgParamsChanged success.\n" << std::endl;
+  }
+  fprintf(stderr,"in setDialProperty(),the properties: friendlyname: %s, uuid: %s, modelname: %s\n", friendlyname, uuid, modelname);
 }
 
 DIALStatus getAppStatus(const char *callsign) {
