@@ -11,6 +11,7 @@ int deActivateApp(const char* callsign);
 int listenIpChange();
 DIALStatus getAppStatus(const char* callsign);
 extern bool _appHidden;
+bool _passivemode;
 bool hideApp(const char* callsign);
 bool resumeApp(const char* callsign);
 int loadJson(const char* jsonFile);

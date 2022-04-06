@@ -26,6 +26,23 @@ extern "C" {
 int activateApp(const char *callsign, const char *url) {
   std::cout << "the launchurl is :" << std::string(url) << std::endl;
   uint32_t ret;
+  // Passive mode
+  if (_passivemode) {
+    JsonObject broadParamsTemp;
+    string paramsTemp;
+    JsonObject broadParams;
+    JsonObject broadResult;
+    broadParamsTemp.Set("callsign", callsign);
+    broadParamsTemp.Set("url", url);
+    broadParamsTemp.ToString(paramsTemp);
+
+    broadParams.Set("event", "dialLaunchRequest");
+    broadParams.Set("params", paramsTemp.c_str());
+    ret = g_wpe_system->Invoke(2000, "broadcastEvent", broadParams, broadResult);
+    std::cout << "amldial-system broadcastEvent()_dialLaunchRequest return value:" << ret << std::endl;
+    return 0;
+  }
+    
   // Wake On Lan
   JsonObject powerParams;
   JsonObject powerResult;
@@ -40,6 +57,8 @@ int activateApp(const char *callsign, const char *url) {
       ret = g_wpe_system->Invoke(2000, "setPowerState", powerParams, powerResult);
       std::cout << "amldial-system setPowerState() return value:" << ret << std::endl;
   }
+
+  // Active mode
   DIALStatus appStatus = getAppStatus(callsign);
   if (appStatus == kDIALStatusHide) {
     resumeApp(callsign);
@@ -102,6 +121,24 @@ int activateApp(const char *callsign, const char *url) {
 }
 
 int deActivateApp(const char *callsign) {
+  // Passive mode
+  if (_passivemode) {
+    JsonObject broadParamsTemp;
+    string paramsTemp;
+    JsonObject broadParams;
+    JsonObject broadResult;
+    broadParamsTemp.Set("callsign", callsign);
+    broadParamsTemp.ToString(paramsTemp);
+
+    broadParams.Set("event", "dialStopRequest");
+    broadParams.Set("params", paramsTemp.c_str());
+    uint32_t ret = g_wpe_system->Invoke(2000, "broadcastEvent", broadParams, broadResult);
+    std::cout << "amldial-system broadcastEvent()_dialStopRequest return value:" << ret << std::endl;
+    _appHidden = false;
+    return 0;
+  }
+    
+  // Active mode
   JsonObject callsignObj = JsonObject(std::string("{\"callsign\": \"") + callsign + "\"}");
   uint32_t result =
       g_wpe_contoller->Set<JsonObject>(2000, "deactivate", callsignObj);
@@ -246,6 +283,24 @@ DIALStatus getAppStatus(const char *callsign) {
 }
 
 bool hideApp(const char* callsign) {
+  // Passive mode
+  if (_passivemode) {
+    JsonObject broadParamsTemp;
+    string paramsTemp;
+    JsonObject broadParams;
+    JsonObject broadResult;
+    broadParamsTemp.Set("callsign", callsign);
+    broadParamsTemp.ToString(paramsTemp);
+
+    broadParams.Set("event", "dialHideRequest");
+    broadParams.Set("params", paramsTemp.c_str());
+    uint32_t ret = g_wpe_system->Invoke(2000, "broadcastEvent", broadParams, broadResult);
+    std::cout << "amldial-system broadcastEvent()_dialHideRequest return value:" << ret << std::endl;
+    _appHidden = true;
+    return true;
+  }
+    
+  // Active mode
   JsonObject invokeParams;
   JsonObject invokeResult;
   std::string invokeMethod;
@@ -291,7 +346,7 @@ int loadJson(const char* jsonFile) {
     std::cout << "amldial-loadJson() fail to read jsonfile" << std::endl;
     ret = 1;
   }
-  
+  _passivemode = (jsonResult["configuration"].Object())["passivemode"].Boolean();
   appInfoList = (struct appInfo*)malloc(sizeof(struct appInfo));
   struct appInfo* temp =  appInfoList;
   JsonArray apps = (jsonResult["configuration"].Object())["apps"].Array();
