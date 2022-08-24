@@ -4,6 +4,7 @@
 extern "C" {
 #endif
 #include "dial_server.h"
+#include <net/if.h>
 extern void addNewIpToMulticast();
 extern int ssdp_running;
 int activateApp(const char* callsign, const char* url);
@@ -19,6 +20,8 @@ void setDialProperty(char *friendlyname, char *uuid, char *modelname);
 extern char friendly_name[256];
 extern char uuid[256];
 extern char model_name[256];
+extern char eth_interface[IFNAMSIZ];
+extern char wifi_interface[IFNAMSIZ];
 
 struct appInfo {
     char* name;

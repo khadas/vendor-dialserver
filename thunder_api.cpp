@@ -9,6 +9,8 @@
 static char *spDefaultUuid = "deadbeef-wlfy-beef-dead-beefdeadbeef";
 static char *spDefaulFName = "AMLOGICDEV";
 static char *spDefaultMName = "OTT-Defult";
+static char *spDefaultEthInterface = "eth0";
+static char *spDefaultWifiInterface = "wlan0";
 #define ARRAY_SIZE(e) (sizeof(e) / sizeof(*(e)))
 
 const char *params_interest[] = {PARAM_FRIENDLY_NAME, PARAM_MODEL_NAME};
@@ -231,6 +233,10 @@ void setDialProperty(char *friendlyname, char *uuid, char *modelname) {
     snprintf(friendlyname, MAXSIZE, "%s", spDefaulFName);
   if (AmlDeviceGetProperty("MODEL_NAME", modelname, MAXSIZE))
     snprintf(modelname, MAXSIZE, "%s", spDefaultMName);
+  if (AmlDeviceGetProperty("ETHERNET_INTERFACE", eth_interface, IFNAMSIZ))
+    snprintf(eth_interface, IFNAMSIZ, "%s", spDefaultEthInterface);
+  if (AmlDeviceGetProperty("WIFI_INTERFACE", wifi_interface, IFNAMSIZ))
+    snprintf(wifi_interface, IFNAMSIZ, "%s", spDefaultWifiInterface);
 
   JsonArray invokeArr;
   JsonObject invokeResult;

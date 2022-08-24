@@ -84,6 +84,8 @@ static int my_port = 0;
 char friendly_name[256];
 char uuid[256];
 char model_name[256];
+char eth_interface[IFNAMSIZ];
+char wifi_interface[IFNAMSIZ];
 static struct mg_context *ctx;
 
 bool wakeOnWifiLan=true;
@@ -142,8 +144,14 @@ static char * get_local_address() {
         exit(1);
     }
     for (i = 0; i < ifc.ifc_len/sizeof(ifc.ifc_req[0]); i++) {
+        fprintf(stderr, "the name of %d interface is %s ,flag is %d.\n", i, ifc.ifc_req[i].ifr_name, ifc.ifc_req[i].ifr_flags);
+        bool is_eth = !strncmp(ifc.ifc_req[i].ifr_name, eth_interface, IFNAMSIZ);
+        bool is_wlan = !strncmp(ifc.ifc_req[i].ifr_name, wifi_interface, IFNAMSIZ);
+        if (!is_eth && !is_wlan)
+            continue;
         strncpy(ip_addr,
                inet_ntoa(((struct sockaddr_in *)(&ifc.ifc_req[i].ifr_addr))->sin_addr), sizeof(ip_addr) - 1);
+        fprintf (stderr, "the ipaddr is %s \n", ip_addr);
         if (0 > ioctl(s, SIOCGIFFLAGS, &ifc.ifc_req[i])) {
             perror("SIOCGIFFLAGS");
             exit(1);
@@ -171,7 +179,8 @@ static char * get_local_address() {
                 (unsigned char)ifc.ifc_req[i].ifr_hwaddr.sa_data[3],
                 (unsigned char)ifc.ifc_req[i].ifr_hwaddr.sa_data[4],
                 (unsigned char)ifc.ifc_req[i].ifr_hwaddr.sa_data[5]);
-        break;
+        if (is_eth)
+            break;
     }
     close(s);
     return hw_addr;
@@ -293,16 +302,16 @@ void run_ssdp(int port, const char *pFriendlyName, const char * pModelName, cons
 void addNewIpToMulticast()
 {
     fprintf(stderr,"enter addNewIpToMulticast \n");
-    if (-1 == setsockopt(ssdp_socket_fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq, sizeof(mreq))) {
-        perror("drop_membership");
-        exit(1);
-    }
-    fprintf(stderr,"old ip leave\n");
     char* hw_addr = get_local_address();
     if (hw_addr == NULL) {
         printf("Unable to retrieve hardware address.");
         return;
     }
+    if (-1 == setsockopt(ssdp_socket_fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq, sizeof(mreq))) {
+        perror("drop_membership");
+        exit(1);
+    }
+    fprintf(stderr,"old ip leave\n");
     fprintf(stderr,"new ip is:%s\n",ip_addr);
     mreq.imr_multiaddr.s_addr = inet_addr("239.255.255.250");
     mreq.imr_interface.s_addr = inet_addr(ip_addr);
