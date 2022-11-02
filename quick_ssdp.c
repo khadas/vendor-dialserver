@@ -81,12 +81,17 @@ static const char wakeup_header[] = "WAKEUP: MAC=%s;Timeout=%d\r\n";
 static char ip_addr[INET6_ADDRSTRLEN] = "127.0.0.1";
 static int dial_port = 0;
 static int my_port = 0;
+static struct mg_context *ctx;
+static struct ip_mreq mreq = {0};
+static int ssdp_socket_fd = -1;
+static char wakeup_buf[sizeof(wakeup_header) + HW_ADDRSTRLEN + STR_TIMEOUTLEN] = {0};
+
 char friendly_name[256];
 char uuid[256];
 char model_name[256];
 char eth_interface[IFNAMSIZ];
 char wifi_interface[IFNAMSIZ];
-static struct mg_context *ctx;
+int ssdp_running = 1;
 
 bool wakeOnWifiLan=true;
 extern bool ipChangeFlag;
@@ -143,6 +148,15 @@ static char * get_local_address() {
         fprintf(stderr, "SIOCGIFCONF output too long");
         exit(1);
     }
+
+    hw_addr = (char*)malloc(HW_ADDRSTRLEN + 1);
+    if (hw_addr == NULL) {
+        fprintf(stderr, "hw_addr malloc failed.");
+        exit(1);
+    }
+    // set default value for hw_addr
+    strncpy(hw_addr, "00:00:00:00:00:00", HW_ADDRSTRLEN);
+
     for (i = 0; i < ifc.ifc_len/sizeof(ifc.ifc_req[0]); i++) {
         fprintf(stderr, "the name of %d interface is %s ,flag is %d.\n", i, ifc.ifc_req[i].ifr_name, ifc.ifc_req[i].ifr_flags);
         bool is_eth = !strncmp(ifc.ifc_req[i].ifr_name, eth_interface, IFNAMSIZ);
@@ -169,9 +183,6 @@ static char * get_local_address() {
         // hardware address?
         //
         // Make sure this is correct for the target device and platform.
-        hw_addr = (char*)malloc(HW_ADDRSTRLEN + 1);
-        if (hw_addr == NULL)
-            break;
         sprintf(hw_addr, "%02x:%02x:%02x:%02x:%02x:%02x",
                 (unsigned char)ifc.ifc_req[i].ifr_hwaddr.sa_data[0],
                 (unsigned char)ifc.ifc_req[i].ifr_hwaddr.sa_data[1],
@@ -186,15 +197,11 @@ static char * get_local_address() {
     return hw_addr;
 }
 
-struct ip_mreq mreq = {0};
-int ssdp_socket_fd = -1;
-int ssdp_running = 1;
 static void handle_mcast(char *hw_addr) {
     int one = 1, bytes, s;
     socklen_t addrlen;
     struct sockaddr_in saddr = {0};
     
-    char wakeup_buf[sizeof(wakeup_header) + HW_ADDRSTRLEN + STR_TIMEOUTLEN] = {0, };
     char send_buf[sizeof(ssdp_reply) + INET_ADDRSTRLEN + 256 + 256 + sizeof(wakeup_buf)] = {0,};
     if (-1 < wakeup_timeout && wakeOnWifiLan) {
         snprintf(wakeup_buf, sizeof(wakeup_buf), wakeup_header, hw_addr, wakeup_timeout);
@@ -303,16 +310,18 @@ void addNewIpToMulticast()
 {
     fprintf(stderr,"enter addNewIpToMulticast \n");
     char* hw_addr = get_local_address();
-    if (hw_addr == NULL) {
-        printf("Unable to retrieve hardware address.");
+    if (hw_addr == NULL || !strncmp(hw_addr, "00:00:00:00:00:00", HW_ADDRSTRLEN)) {
+        fprintf(stderr, "Unable to retrieve hardware address, do nothing.\n");
         return;
+    }
+    if (-1 < wakeup_timeout && wakeOnWifiLan) {
+        snprintf(wakeup_buf, sizeof(wakeup_buf), wakeup_header, hw_addr, wakeup_timeout);
     }
     if (-1 == setsockopt(ssdp_socket_fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq, sizeof(mreq))) {
         perror("drop_membership");
         exit(1);
     }
-    fprintf(stderr,"old ip leave\n");
-    fprintf(stderr,"new ip is:%s\n",ip_addr);
+    fprintf(stderr,"old ip leave, new ip is:%s\n",ip_addr);
     mreq.imr_multiaddr.s_addr = inet_addr("239.255.255.250");
     mreq.imr_interface.s_addr = inet_addr(ip_addr);
     if (-1 == setsockopt(ssdp_socket_fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq))) {
