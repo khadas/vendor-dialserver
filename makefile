@@ -5,9 +5,9 @@ OBJS := main.o dial_server.o mongoose.o quick_ssdp.o url_lib.o dial_data.o syste
 OBJS_CXX := thunder_api.o
 HEADERS := $(wildcard *.h)
 
-LOCAL_INCLUDE := -I$(STAGING_DIR)/usr/include/WPEFramework/
+LOCAL_INCLUDE := -I$(STAGING_DIR)/usr/include/WPEFramework/ -I$(STAGING_DIR)/usr/include/platform_service/
 CFLAGS += $(LOCAL_INCLUDE)
-LDFLAGS += -lWPEFrameworkProtocols -lWPEFrameworkPlugins -lWPEFrameworkCore -lamldeviceproperty
+LDFLAGS += -lWPEFrameworkProtocols -lWPEFrameworkPlugins -lWPEFrameworkCore -laml_platform_client
 
 %.c: $(HEADERS)
 
