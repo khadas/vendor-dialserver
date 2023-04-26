@@ -149,7 +149,7 @@ int activateApp(const char *callsign, const char *url) {
   }
   if (!strcmp(curAppForDial->handler, "YouTube")) {
     std::string launchURL;
-    launchURL = launchURL + "\"" + url + "\"";
+    launchURL = launchURL + "\"" + url + "&launch=dial" + "\"";
     std::cout << "amldial-launchURL value:" << launchURL << std::endl;
     JsonObject setUrlResult;
     std::string linkAppCallsign = callsign;
