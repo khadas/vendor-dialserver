@@ -19,7 +19,7 @@ static char *spDefaultWifiInterface = "wlan0";
 const char *params_interest[] = {PARAM_FRIENDLY_NAME, PARAM_MODEL_NAME};
 
 static WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>
-    *g_wpe_contoller = nullptr;
+    *g_wpe_controller = nullptr;
 static WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>
     *g_wpe_network = nullptr;
 static WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>
@@ -90,7 +90,7 @@ int activateApp(const char *callsign, const char *url) {
     std::cout << "amldial-system broadcastEvent()_dialLaunchRequest return value:" << ret << std::endl;
     return 0;
   }
-    
+
   // Wake On Lan
   JsonObject powerParams;
   JsonObject powerResult;
@@ -131,20 +131,26 @@ int activateApp(const char *callsign, const char *url) {
           && (strstr(url,"loader=yts")!= nullptr)) {
         launchtype.Set("url", url);
       }
-      ret = g_wpe_contoller->Set<JsonObject>(1000, std::string("configitem@") + callsign, launchtype);
+      ret = g_wpe_controller->Set<JsonObject>(1000, std::string("configitem@") + callsign, launchtype);
       std::cout << "amldial-controller configItem@" <<  std::string(callsign) << "return value:" << ret << std::endl;
     }
     if (!strcmp(curAppForDial->handler, "Netflix")) {
       JsonObject queryString;
       queryString.Set("querystring",url);
       queryString.Set("launchtosuspend",false);
-      ret = g_wpe_contoller->Set<JsonObject>(1000, std::string("configitem@") + callsign, queryString);
+      ret = g_wpe_controller->Set<JsonObject>(1000, std::string("configitem@") + callsign, queryString);
+      std::cout << "amldial-controller configItem@" <<  std::string(callsign) << "return value:" << ret << std::endl;
+    }
+    if (!strcmp(curAppForDial->handler, "Amazon")) {
+      JsonObject launchtype;
+      launchtype.Set("launch_in_background",false);
+      ret = g_wpe_controller->Set<JsonObject>(1000, std::string("configitem@") + callsign, launchtype);
       std::cout << "amldial-controller configItem@" <<  std::string(callsign) << "return value:" << ret << std::endl;
     }
     // Activate the app
     JsonObject callsignObj = JsonObject(std::string("{\"callsign\": \"") + callsign + "\"}");
     ret =
-        g_wpe_contoller->Set<JsonObject>(1000, "activate", callsignObj);
+        g_wpe_controller->Set<JsonObject>(1000, "activate", callsignObj);
     std::cout << "amldial-controller activate() return value:" << ret << std::endl;
   }
   if (!strcmp(curAppForDial->handler, "YouTube")) {
@@ -185,11 +191,11 @@ int deActivateApp(const char *callsign) {
     _appHidden = false;
     return 0;
   }
-    
+
   // Active mode
   JsonObject callsignObj = JsonObject(std::string("{\"callsign\": \"") + callsign + "\"}");
   uint32_t result =
-      g_wpe_contoller->Set<JsonObject>(2000, "deactivate", callsignObj);
+      g_wpe_controller->Set<JsonObject>(2000, "deactivate", callsignObj);
   std::cout << "amldial-controller deactivate() return value:" << result << std::endl;
   _appHidden = false;
   return 0;
@@ -219,7 +225,7 @@ int listenIpChange() {
     }
   }
   // Link to required pullgins
-  g_wpe_contoller =
+  g_wpe_controller =
       new WPEFramework::JSONRPC::LinkType<WPEFramework::Core::JSON::IElement>(
           "Controller.1");
   g_wpe_rdkshell =
@@ -265,7 +271,7 @@ void setDialProperty(char *friendlyname, char *uuid, char *modelname) {
   // get_mac(mac_addr, "eth0") ? strcat(uuid, mac_addr) : strncpy(uuid, spDefaultUuid, MAXSIZE-1);
   if (get_mac(mac_addr, "eth0"))
     strcat(uuid, mac_addr);
-  else 
+  else
     snprintf(uuid, MAXSIZE, "%s", spDefaultUuid);
   string _friendlyname, _modelname, _eth_interface, _wifi_interface;
   if (Amlogic::Platform::Property::get("persist.dialserver.name", _friendlyname))
@@ -290,9 +296,9 @@ void setDialProperty(char *friendlyname, char *uuid, char *modelname) {
 }
 
 DIALStatus getAppStatus(const char *callsign) {
-  ASSERT(g_wpe_contoller != nullptr);
+  ASSERT(g_wpe_controller != nullptr);
   JsonArray getStatusResult;
-  int result = g_wpe_contoller->Get<JsonArray>(
+  int result = g_wpe_controller->Get<JsonArray>(
       2000, std::string("status@") + callsign, getStatusResult);
   if (result == WPEFramework::Core::ERROR_NONE) {
     if (getStatusResult.Elements().Count() == 1) {
@@ -308,7 +314,7 @@ DIALStatus getAppStatus(const char *callsign) {
           return kDIALStatusStopped;
         else return kDIALStatusError;
       }
-    } 
+    }
   }
   std::cout << "amldial-getAppStatus() failed" << std::endl;
   return kDIALStatusError;
@@ -331,7 +337,7 @@ bool hideApp(const char* callsign) {
     _appHidden = true;
     return true;
   }
-    
+
   // Active mode
   JsonObject invokeParams;
   JsonObject invokeResult;
