@@ -127,8 +127,7 @@ int activateApp(const char *callsign, const char *url) {
     // Config the app to be activated
     if (!strcmp(curAppForDial->handler, "YouTube")) {
       JsonObject launchtype = JsonObject("{\"launchtype\": \"launch=dial\"}");
-      if ((!strcmp(curAppForDial->name, "YouTubeTV") || !strcmp(curAppForDial->name, "YouTubeKids"))
-          && (strstr(url,"loader=yts")!= nullptr)) {
+      if (!strcmp(curAppForDial->name, "YouTubeTV") && (strstr(url,"loader=yts")!= nullptr)) {
         launchtype.Set("url", url);
       }
       ret = g_wpe_controller->Set<JsonObject>(1000, std::string("configitem@") + callsign, launchtype);

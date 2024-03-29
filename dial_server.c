@@ -821,7 +821,7 @@ static void *request_handler(enum mg_event event, struct mg_connection *conn,
             // if ((origin_header && !is_allowed_origin(ds, origin_header, app_name))||(origin_header == NULL)) {
             if (origin_header && !is_allowed_origin(ds, origin_header, app_name)) {
                 if(!strcmp(app_name,"YouTube") || !strcmp(app_name,"Netflix") || !strcmp(app_name,"system") ||
-                   !strcmp(app_name,"YouTubeTV") || !strcmp(app_name,"YouTubeKids")) {
+                   !strcmp(app_name,"YouTubeTV")) {
                     mg_send_http_error(conn, 403, "Forbidden", "Forbidden");
                     return "done";
                 }

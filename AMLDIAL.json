@@ -17,13 +17,6 @@
     "url":"https://www.youtube.com/tv/upg"
    },
    {
-    "name":"YouTubeKids",
-    "handler":"YouTube",
-    "callsign":"CobaltKids",
-    "hide":true,
-    "url":"https://www.youtube.com/tv_kids"
-   },
-   {
     "name":"Netflix",
     "handler":"Netflix",
     "callsign":"Netflix",
