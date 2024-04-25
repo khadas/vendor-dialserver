@@ -51,6 +51,7 @@
 
 #define BUFSIZE 256
 #define JSONFILEPATH "/etc/amldial/AMLDIAL.json"
+#define DIAL_CONFIG_FILE "/etc/amldial/amldial.conf"
 
 static char spFriendlyName[BUFSIZE];
 static char spModelName[BUFSIZE];
@@ -218,7 +219,11 @@ int main(int argc, char* argv[])
     srand(time(NULL));
 
     listenIpChange();
+#if defined(WITH_APP_MANAGER)
+    loadConfig(DIAL_CONFIG_FILE);
+#else
     loadJson(JSONFILEPATH);
+#endif
     setDialProperty(spFriendlyName, spUuid, spModelName);
     runDial();
 
